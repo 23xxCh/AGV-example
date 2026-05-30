@@ -1,0 +1,154 @@
+# ============================================================
+# agv_navigation.rviz - RViz2可视化配置文件
+# ============================================================
+#
+# 【使用方法】
+#   rviz2 -d /path/to/agv_navigation.rviz
+#
+# 或通过launch文件自动加载（后续添加）
+#
+# 【RViz2配置说明】
+# 这个配置文件预设了以下显示项：
+# - Map: 显示栅格地图（/map话题）
+# - Path: 显示规划路径（/planned_path话题）
+# - TF: 显示坐标系变换关系
+# - Grid: 显示参考网格
+
+Panels:
+  - Class: rviz_common/Displays
+    Help Width: 78
+    Name: Displays
+    Property Tree Widget:
+      Expanded:
+        - /Global Options1
+        - /Map1
+        - /Path1
+      Splitter Ratio: 0.5
+    Tree Height: 400
+  - Class: rviz_common/Views
+    Expanded:
+      - /Current View1
+    Name: Views
+    Splitter Ratio: 0.5
+
+Visualization Manager:
+  Class: ""
+  Displays:
+    # ---- 参考网格 ----
+    - Alpha: 0.5
+      Cell Count: 50
+      Cell Size: 1
+      Class: rviz_default_plugins/Grid
+      Color: 160; 160; 164
+      Enabled: true
+      Line Style:
+        Line Width: 0.03
+        Value: Lines
+      Name: Grid
+      Normal Cell Count: 0
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Plane: XY
+      Plane Cell Count: 50
+      Reference Frame: <Fixed Frame>
+      Value: true
+
+    # ---- 栅格地图显示 ----
+    - Alpha: 0.7
+      Class: rviz_default_plugins/Map
+      Color Scheme: map
+      Draw Behind: false
+      Enabled: true
+      Name: Map
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /map
+      Update Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /map_updates
+      Use Timestamp: false
+      Value: true
+
+    # ---- 规划路径显示 ----
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz_default_plugins/Path
+      Color: 0; 255; 0
+      Enabled: true
+      Head Diameter: 0.15
+      Head Length: 0.1
+      Length: 0.3
+      Line Style: Lines
+      Line Width: 0.05
+      Name: Planned Path
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Pose Color: 255; 85; 255
+      Pose Style: None
+      Radius: 0.03
+      Shaft Diameter: 0.05
+      Shaft Length: 0.1
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /planned_path
+      Value: true
+
+  Enabled: true
+  Global Options:
+    Background Color: 48; 48; 48
+    Fixed Frame: map
+    Frame Rate: 30
+  Name: root
+  Tools:
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/SetInitialPose
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /initialpose
+    - Class: rviz_default_plugins/SetGoal
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /goal_pose
+  Value: true
+  Views:
+    Current:
+      Class: rviz_default_plugins/TopDownOrtho
+      Enabled: true
+      Name: Current
+      Near Clip Distance: 0.01
+      Scale: 30
+      Target Frame: <Fixed Frame>
+      Value: TopDownOrtho (rviz_default_plugins)
+      X: 2
+      Y: 1.5
+    Saved: ~
+
+Window Geometry:
+  Displays:
+    collapsed: false
+  Height: 800
+  QMainWindow State: ""
+  Views:
+    collapsed: false
+  Width: 1200
+  X: 100
+  Y: 100

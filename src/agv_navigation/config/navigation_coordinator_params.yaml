@@ -1,0 +1,17 @@
+# ============================================================
+# navigation_coordinator_params.yaml - 导航协调器参数配置（占位）
+# ============================================================
+
+navigation_coordinator:
+  ros__parameters:
+    # 全局规划器服务名
+    planner_service: "/plan_path"
+
+    # 导航反馈频率（Hz）
+    feedback_rate: 5.0
+
+    # 目标到达判定距离（米）
+    goal_tolerance_xy: 0.3
+
+    # 目标到达判定角度（弧度）
+    goal_tolerance_yaw: 0.2

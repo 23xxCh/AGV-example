@@ -1,0 +1,38 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<!--
+  agv_navigation - AGV导航协调包
+
+  功能：协调地图、规划器、避障模块，提供统一的导航接口
+  技术要点：
+  - 导航协调器是系统的"大脑"，接收导航请求，调度各模块完成导航
+  - 使用ActionServer提供导航动作接口，支持进度反馈和取消
+  - 生命周期节点(LifecycleNode)：支持启动/停止/清理等状态管理
+-->
+<package format="3">
+  <name>agv_navigation</name>
+  <version>0.1.0</version>
+  <description>AGV导航协调器：统筹地图、规划、避障模块，提供导航Action接口</description>
+  <maintainer email="user@example.com">AGV Developer</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>rclcpp_action</depend>       <!-- ROS2 Action服务器/客户端库 -->
+  <depend>nav_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>tf2_ros</depend>
+  <depend>nav2_costmap_2d</depend>
+  <depend>agv_interfaces</depend>
+  <depend>agv_map</depend>
+  <depend>agv_global_planner</depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_cmake_gtest</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

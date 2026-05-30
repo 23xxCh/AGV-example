@@ -1,0 +1,41 @@
+# ============================================================
+# PathPlan.srv - 路径规划请求/响应服务
+# ============================================================
+#
+# 【这是什么】
+# 这是一个ROS2服务接口，客户端发送"请帮我规划从A到B的路径"请求，
+# 服务端（路径规划器）计算后返回规划结果。
+#
+# 【技术要点】
+# - ROS2 Service（服务）是请求-响应模式，类似函数调用
+#   客户端调用 → 服务端处理 → 返回结果
+# - 与Topic（话题）的区别：
+#   Topic: 单向广播，一对多，持续发布（如传感器数据）
+#   Service: 双向请求-响应，一对一，按需调用（如路径规划）
+# - 适用于：需要等待结果的操作，且操作时间不太长（<几秒）
+#
+# 【请求部分 Request】
+# start: 起点坐标，如果设为(0,0,0)且 use_current_pose=true，
+#         规划器会使用AGV当前位姿作为起点
+# goal: 终点坐标
+# use_current_pose: 是否使用AGV当前位置作为起点
+# planner_id: 指定使用哪个规划器（如 "astar", "dijkstra"）
+
+# ---- 请求部分 ----
+geometry_msgs/Point start
+geometry_msgs/Point goal
+bool use_current_pose
+string planner_id
+
+---
+
+# ---- 响应部分 ----
+# success: 规划是否成功
+# path: 规划出的路径（成功时有效）
+# cost: 路径总代价
+# error_msg: 失败时的错误信息
+
+bool success
+nav_msgs/Path path
+float64 cost
+string error_msg

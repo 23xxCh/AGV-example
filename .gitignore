@@ -1,0 +1,30 @@
+# ============================================================
+# .gitignore - AGV路径规划系统Git忽略文件
+# ============================================================
+
+# ROS2/Colcon 构建产物（每次colcon build自动生成，不需要提交）
+build/
+install/
+log/
+
+# IDE 配置文件
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 编译产物
+*.o
+*.so
+*.a
+*.dylib
+
+# Python 缓存
+__pycache__/
+*.pyc
+*.pyo
+
+# OS 文件
+.DS_Store
+Thumbs.db

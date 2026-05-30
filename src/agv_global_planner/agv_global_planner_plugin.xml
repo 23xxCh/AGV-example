@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<library path="agv_astar_planner">
+  <!--
+    Nav2插件描述文件
+
+    技术要点：
+    - pluginlib通过这个XML文件发现可加载的插件类
+    - path属性指向编译生成的共享库文件名（不含lib前缀和.so后缀）
+    - class_type: 插件的完整C++类名（命名空间::类名）
+    - base_class_type: 插件继承的基类完整名称
+    - description: 插件功能描述
+  -->
+  <class type="agv_global_planner::AstarPlanner"
+         base_class_type="nav2_core::GlobalPlanner">
+    <description>A*全局路径规划器，基于Costmap2D进行最优路径搜索，适用于仓储AGV场景</description>
+  </class>
+</library>

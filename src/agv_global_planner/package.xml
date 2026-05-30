@@ -1,0 +1,43 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<!--
+  agv_global_planner - AGV全局路径规划包
+
+  功能：基于A*算法实现全局路径规划
+  技术要点：
+  - 全局规划器输入：起点、终点、代价地图
+  - 全局规划器输出：一条从起点到终点的无碰撞路径
+  - A*是最经典的全局规划算法，保证找到最优路径（如果启发函数可纳）
+  - 本包作为nav2_core::GlobalPlanner插件，可与Nav2框架集成
+-->
+<package format="3">
+  <name>agv_global_planner</name>
+  <version>0.1.0</version>
+  <description>AGV全局路径规划器：A*算法实现，基于Costmap2D进行路径搜索</description>
+  <maintainer email="user@example.com">AGV Developer</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>rclcpp_components</depend>    <!-- 组件化节点支持，可将节点作为插件加载 -->
+  <depend>nav_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>nav2_core</depend>           <!-- Nav2核心接口定义 -->
+  <depend>nav2_costmap_2d</depend>     <!-- Costmap2D代价地图 -->
+  <depend>nav2_util</depend>           <!-- Nav2工具库 -->
+  <depend>nav2_common</depend>
+  <depend>pluginlib</depend>           <!-- 插件加载库 -->
+  <depend>tf2_ros</depend>
+  <depend>agv_interfaces</depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_cmake_gtest</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+    <!-- 声明本包提供 nav2_core::GlobalPlanner 插件 -->
+    <nav2_core plugin="${prefix}/agv_global_planner_plugin.xml"/>
+  </export>
+</package>

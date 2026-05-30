@@ -1,0 +1,64 @@
+# ============================================================
+# Navigate.action - 导航动作接口
+# ============================================================
+#
+# 【这是什么】
+# 这是ROS2的Action（动作）接口，用于长时间运行的导航任务。
+# AGV从起点走到终点可能需要几十秒甚至几分钟，期间需要：
+# - 持续反馈当前进度（走了多远、距离终点还有多远）
+# - 能够中途取消任务（遇到不可逾越的障碍时）
+#
+# 【技术要点】
+# - Action = Topic + Service 的结合体：
+#   目标(Goal) → 类似Service请求，发起导航任务
+#   反馈(Feedback) → 类似Topic，持续发布进度
+#   结果(Result) → 类似Service响应，任务完成时返回
+# - Action底层通过三个话题实现：
+#   /navigate/_action/send_goal     (发送目标)
+#   /navigate/_action/feedback      (接收反馈)
+#   /navigate/_action/get_result    (获取结果)
+#
+# 【与Service的区别】
+# Service: 发送请求后只能等待最终结果，无法获取中间进度
+# Action:  可以随时获取进度反馈，也可以随时取消任务
+# 适合长时间运行的任务：导航、机械臂运动、文件下载等
+
+# ---- 目标部分 (Goal) ----
+# 发起导航时指定的参数
+
+# 目标位置
+geometry_msgs/Point goal_position
+# 目标朝向（弧度）
+float64 goal_theta
+# 是否使用当前位置作为起点
+bool use_current_pose
+# 最大允许规划时间（秒），超时则规划失败
+float64 max_planning_time
+
+---
+
+# ---- 结果部分 (Result) ----
+# 导航完成或失败时返回
+
+# 是否成功到达目标
+bool success
+# 最终位置误差（米）
+float64 final_position_error
+# 总导航耗时（秒）
+float64 total_time
+# 失败原因（成功时为空）
+string error_msg
+
+---
+
+# ---- 反馈部分 (Feedback) ----
+# 导航过程中持续发布的进度信息
+
+# 当前位置
+geometry_msgs/Point current_position
+# 距离目标还有多远（米）
+float64 distance_remaining
+# 预计剩余时间（秒）
+float64 estimated_time_remaining
+# 已完成路径的百分比（0~100）
+float32 completion_percent
