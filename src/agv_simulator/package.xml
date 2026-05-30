@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<!--
+  agv_simulator - AGV 2D仿真器
+
+  功能：模拟AGV运动，发布TF和可视化Marker
+  技术要点：
+  - 订阅cmd_vel速度指令，使用差分运动学模型模拟AGV移动
+  - 发布TF变换(map→base_link)，让其他节点知道机器人位置
+  - 发布Marker消息，用于RViz2中显示机器人
+-->
+<package format="3">
+  <name>agv_simulator</name>
+  <version>0.1.0</version>
+  <description>AGV 2D仿真器：模拟差分驱动运动，发布TF和可视化Marker</description>
+  <maintainer email="user@example.com">AGV Developer</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>geometry_msgs</depend>
+  <depend>visualization_msgs</depend>
+  <depend>tf2</depend>
+  <depend>tf2_ros</depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

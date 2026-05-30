@@ -136,10 +136,9 @@ DynamicWindow DWASearch::calculateDynamicWindow(const Velocity & current_vel) co
   dw.omega_max = params_.max_vel_theta;
 
   // 第二层限制：当前速度可达范围（Vd）
-  // 考虑加速度限制，下一秒内能达到的速度范围
-  // 例如：当前速度0.3m/s，加速度1.0m/s²
-  //       则下一秒可达 [0.3-1.0*0.1, 0.3+1.0*0.1] = [0.2, 0.4]
-  double dt = params_.sim_granularity;  // 使用模拟时间步长
+  // 考虑加速度限制，在模拟时间内能达到的速度范围
+  // 使用sim_time作为时间窗口，这样机器人可以在整个模拟周期内加速
+  double dt = params_.sim_time;  // 使用模拟时间（如2秒）
   double v_min_reachable = current_vel.v - params_.acc_lim_x * dt;
   double v_max_reachable = current_vel.v + params_.acc_lim_x * dt;
   double omega_min_reachable = current_vel.omega - params_.acc_lim_theta * dt;
@@ -265,6 +264,11 @@ double DWASearch::scoreTrajectory(
   double score = params_.path_distance_bias * heading
                + params_.goal_distance_bias * clearance
                + params_.occdist_scale * velocity;
+
+  // 额外惩罚后退运动（鼓励机器人朝前走）
+  if (trajectory.v < 0.0) {
+    score *= 0.3;  // 后退轨迹得分打3折
+  }
 
   return score;
 }

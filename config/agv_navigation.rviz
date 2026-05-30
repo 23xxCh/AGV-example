@@ -1,18 +1,13 @@
 # ============================================================
-# agv_navigation.rviz - RViz2可视化配置文件
+# agv_navigation.rviz - RViz2可视化配置文件（含仿真）
 # ============================================================
 #
-# 【使用方法】
-#   rviz2 -d /path/to/agv_navigation.rviz
-#
-# 或通过launch文件自动加载（后续添加）
-#
-# 【RViz2配置说明】
-# 这个配置文件预设了以下显示项：
-# - Map: 显示栅格地图（/map话题）
-# - Path: 显示规划路径（/planned_path话题）
-# - TF: 显示坐标系变换关系
-# - Grid: 显示参考网格
+# 【显示内容】
+# - Grid: 参考网格
+# - Map: 栅格地图（/map话题）
+# - Path: 规划路径（/planned_path话题）
+# - Marker: 机器人位置和轮廓（/robot_marker话题）
+# - TF: 坐标系变换
 
 Panels:
   - Class: rviz_common/Displays
@@ -23,6 +18,7 @@ Panels:
         - /Global Options1
         - /Map1
         - /Path1
+        - /Markers1
       Splitter Ratio: 0.5
     Tree Height: 400
   - Class: rviz_common/Views
@@ -104,6 +100,34 @@ Visualization Manager:
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /planned_path
+      Value: true
+
+    # ---- 机器人Marker显示 ----
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: Markers
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /robot_marker
+      Value: true
+
+    # ---- TF坐标系显示 ----
+    - Class: rviz_default_plugins/TF
+      Enabled: true
+      Frame Timeout: 15
+      Frames:
+        All Enabled: true
+      Marker Scale: 0.5
+      Name: TF
+      Show Arrows: true
+      Show Axes: true
+      Show Names: true
+      Tree:
+        {}
+      Update Interval: 0
       Value: true
 
   Enabled: true

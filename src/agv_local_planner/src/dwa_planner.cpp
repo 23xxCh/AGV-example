@@ -212,8 +212,8 @@ void DWAPlanner::controlTimerCallback()
   robot_pose.theta = std::atan2(2.0 * (q.w * q.z + q.x * q.y),
                                  1.0 - 2.0 * (q.y * q.y + q.z * q.z));
 
-  // 获取机器人当前速度（从TF变化率估算，简化处理使用0）
-  Velocity robot_vel(0.0, 0.0);
+  // 获取机器人当前速度（使用上次发布的速度指令作为估计）
+  Velocity robot_vel = last_cmd_vel_;
 
   // ----------------------------------------------------------
   // 步骤2：找到局部目标点
@@ -283,6 +283,10 @@ void DWAPlanner::controlTimerCallback()
   cmd_vel.linear.x = best_vel.v;      // 前进速度（m/s）
   cmd_vel.angular.z = best_vel.omega;  // 转向速度（rad/s）
   cmd_vel_pub_->publish(cmd_vel);
+
+  // 记录上次发布的速度，用于下次DWA计算
+  last_cmd_vel_.v = best_vel.v;
+  last_cmd_vel_.omega = best_vel.omega;
 
   RCLCPP_DEBUG(this->get_logger(),
     "DWA: 位姿(%.2f,%.2f,%.2f) 目标(%.2f,%.2f) → 速度(%.2f, %.2f)",

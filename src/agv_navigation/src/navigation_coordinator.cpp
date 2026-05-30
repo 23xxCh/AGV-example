@@ -137,19 +137,18 @@ void NavigationCoordinator::execute(
   plan_request->use_current_pose = goal->use_current_pose;
   plan_request->planner_id = "astar";
 
-  // 如果不使用当前位姿，设置起始点
-  if (!goal->use_current_pose) {
-    // 查询当前位姿作为起点
-    try {
-      auto tf = tf_buffer_->lookupTransform(map_frame_, base_frame_, tf2::TimePointZero);
-      plan_request->start.x = tf.transform.translation.x;
-      plan_request->start.y = tf.transform.translation.y;
-      plan_request->start.z = 0.0;
-    } catch (const tf2::TransformException &) {
-      plan_request->start.x = 0.0;
-      plan_request->start.y = 0.0;
-      plan_request->start.z = 0.0;
-    }
+  // 始终从TF查询当前机器人位置作为起点
+  try {
+    auto tf = tf_buffer_->lookupTransform(map_frame_, base_frame_, tf2::TimePointZero);
+    plan_request->start.x = tf.transform.translation.x;
+    plan_request->start.y = tf.transform.translation.y;
+    plan_request->start.z = 0.0;
+  } catch (const tf2::TransformException &) {
+    // TF查询失败时使用默认起点
+    plan_request->start.x = 0.15;
+    plan_request->start.y = 0.15;
+    plan_request->start.z = 0.0;
+    RCLCPP_WARN(this->get_logger(), "TF查询失败，使用默认起点(0.15, 0.15)");
   }
 
   // 调用全局规划服务

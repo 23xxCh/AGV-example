@@ -132,6 +132,9 @@ private:
   std::string base_frame_;   // 机器人本体坐标系名（如 "base_link"）
   std::string map_frame_;    // 地图坐标系名（如 "map"）
   double control_frequency_; // 控制频率（Hz）
+
+  // 上次发布的速度（用于DWA动态窗口计算）
+  Velocity last_cmd_vel_{0.0, 0.0};
 };
 
 }  // namespace agv_local_planner

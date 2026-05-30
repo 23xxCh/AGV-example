@@ -1,12 +1,14 @@
 # ============================================================
-# navigation.launch.py - AGV导航系统总启动文件
+# navigation.launch.py - AGV导航系统总启动文件（含仿真）
 # ============================================================
 #
-# 【功能】一键启动完整AGV导航系统
+# 【功能】一键启动完整AGV导航系统（含2D仿真）
 #   1. 地图服务器 → 加载并发布地图
 #   2. A*全局路径规划器 → 订阅地图，提供路径规划服务
 #   3. DWA局部避障器 → 订阅地图+路径，发布速度指令
-#   4. 导航协调器 → 串联全局规划+局部避障，提供Navigate Action
+#   4. 2D仿真器 → 订阅cmd_vel，发布TF和机器人Marker
+#   5. 导航协调器 → 串联全局规划+局部避障
+#   6. RViz2 → 可视化
 #
 # 【使用方法】
 #   ros2 launch agv_navigation navigation.launch.py
@@ -30,9 +32,15 @@
 #                                         │
 #                                  /cmd_vel ↓
 #                                         │
-#                                    ┌─────────┐
-#                                    │  AGV    │
-#                                    └─────────┘
+#                                 ┌───────────────────┐
+#                                 │   2D仿真器        │
+#                                 └───────────────────┘
+#                                   │          │
+#                              TF ↓     Marker ↓
+#                                   │          │
+#                              ┌───────────────────┐
+#                              │      RViz2       │
+#                              └───────────────────┘
 
 import os
 from ament_index_python.packages import get_package_share_directory
@@ -58,6 +66,9 @@ def generate_launch_description():
         default_value=os.path.join(map_dir, 'maps', 'warehouse_map.yaml'),
         description='地图YAML配置文件路径'
     )
+
+    initial_x_arg = DeclareLaunchArgument('initial_x', default_value='0.15')
+    initial_y_arg = DeclareLaunchArgument('initial_y', default_value='0.15')
 
     # ----------------------------------------------------------
     # 节点1：地图服务器
@@ -99,9 +110,26 @@ def generate_launch_description():
     )
 
     # ----------------------------------------------------------
-    # 节点4：导航协调器
+    # 节点4：2D仿真器
     # ----------------------------------------------------------
-    navigation_coordinator_node = Node(
+    sim_node = Node(
+        package='agv_simulator',
+        executable='agv_sim_node',
+        name='agv_simulator',
+        parameters=[{
+            'initial_x': LaunchConfiguration('initial_x'),
+            'initial_y': LaunchConfiguration('initial_y'),
+            'initial_theta': 0.0,
+            'update_rate': 50.0,
+            'base_frame': 'base_link',
+        }],
+        output='screen'
+    )
+
+    # ----------------------------------------------------------
+    # 节点5：导航协调器
+    # ----------------------------------------------------------
+    coordinator_node = Node(
         package='agv_navigation',
         executable='navigation_coordinator_node',
         name='navigation_coordinator',
@@ -117,40 +145,57 @@ def generate_launch_description():
     )
 
     # ----------------------------------------------------------
+    # 节点6：RViz2可视化
+    # ----------------------------------------------------------
+    rviz_config = os.path.join(
+        get_package_share_directory('agv_navigation'),
+        '..', '..', '..', 'agv', 'config', 'agv_navigation.rviz')
+
+    # 如果配置文件不存在，使用默认路径
+    if not os.path.exists(rviz_config):
+        rviz_config = os.path.join(
+            os.path.expanduser('~'), 'AGV', 'config', 'agv_navigation.rviz')
+
+    rviz_node = Node(
+        package='rviz2',
+        executable='rviz2',
+        name='rviz2',
+        arguments=['-d', rviz_config],
+        output='screen'
+    )
+
+    # ----------------------------------------------------------
     # 启动提示
     # ----------------------------------------------------------
     startup_log = LogInfo(msg=[
         '\n============================================================\n',
-        '  AGV导航系统已启动（含局部避障）！\n',
-        '  ┌──────────────┐    /map     ┌───────────────────┐\n',
-        '  │  地图服务器   │ ─────────→ │  A*全局路径规划器  │\n',
-        '  └──────────────┘             └───────────────────┘\n',
-        '                                         │\n',
-        '                                /planned_path ↓\n',
-        '                                         │\n',
-        '  ┌──────────────┐   navigate   ┌───────────────────┐\n',
-        '  │   客户端     │ ──action──→  │    导航协调器      │\n',
-        '  └──────────────┘              └───────────────────┘\n',
-        '                                         │\n',
-        '                                /planned_path ↓\n',
-        '                                         │\n',
-        '                                 ┌───────────────────┐\n',
-        '                                 │  DWA局部避障器     │\n',
-        '                                 └───────────────────┘\n',
-        '                                         │\n',
-        '                                  /cmd_vel ↓\n',
-        '                                         │\n',
-        '                                    ┌─────────┐\n',
-        '                                    │  AGV    │\n',
-        '                                    └─────────┘\n',
+        '  AGV导航仿真系统已启动！\n',
+        '  \n',
+        '  节点：\n',
+        '    1. 地图服务器 (/map)\n',
+        '    2. A*全局规划器 (/plan_path)\n',
+        '    3. DWA局部避障器 (/cmd_vel)\n',
+        '    4. 2D仿真器 (TF + Marker)\n',
+        '    5. 导航协调器 (Navigate Action)\n',
+        '    6. RViz2 可视化\n',
+        '  \n',
+        '  测试方式：\n',
+        '    # 发送导航请求\n',
+        '    ros2 action send_goal /navigate agv_interfaces/action/Navigate \\\n',
+        '      \'{goal_position: {x: 3.0, y: 2.0, z: 0.0}, goal_theta: 0.0, \\\n',
+        '        use_current_pose: true, max_planning_time: 10.0}\'\n',
         '============================================================\n',
     ])
 
     return LaunchDescription([
         yaml_arg,
+        initial_x_arg,
+        initial_y_arg,
         startup_log,
         map_server_node,
         global_planner_node,
         dwa_planner_node,
-        navigation_coordinator_node,
+        sim_node,
+        coordinator_node,
+        rviz_node,
     ])
