@@ -24,6 +24,8 @@
   <depend>tf2</depend>
   <depend>tf2_ros</depend>
   <depend>nav_msgs</depend>
+  <depend>agv_interfaces</depend>
+  <depend>std_msgs</depend>
 
   <export>
     <build_type>ament_cmake</build_type>

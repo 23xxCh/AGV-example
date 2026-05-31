@@ -131,6 +131,18 @@ Visualization Manager:
         Value: /agv_001/dwa_markers
       Value: true
 
+    # ---- AGV 1: 电池状态 ----
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: AGV 1 Battery
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /agv_001/battery_markers
+      Value: true
+
     # ============================================================
     # AGV 2（蓝色）
     # ============================================================
@@ -186,6 +198,18 @@ Visualization Manager:
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /agv_002/dwa_markers
+      Value: true
+
+    # ---- AGV 2: 电池状态 ----
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: AGV 2 Battery
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /agv_002/battery_markers
       Value: true
 
     # ============================================================
