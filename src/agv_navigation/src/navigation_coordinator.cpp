@@ -25,7 +25,7 @@ NavigationCoordinator::NavigationCoordinator(const rclcpp::NodeOptions & options
   // ----------------------------------------------------------
   // 声明和读取参数
   // ----------------------------------------------------------
-  this->declare_parameter("planner_service", std::string("/plan_path"));
+  this->declare_parameter("planner_service", std::string("plan_path"));
   this->declare_parameter("feedback_rate", 5.0);
   this->declare_parameter("goal_tolerance_xy", 0.3);
   this->declare_parameter("goal_tolerance_yaw", 0.2);
@@ -59,7 +59,7 @@ NavigationCoordinator::NavigationCoordinator(const rclcpp::NodeOptions & options
   // 创建路径发布器
   // ----------------------------------------------------------
   path_pub_ = this->create_publisher<nav_msgs::msg::Path>(
-    "/planned_path", rclcpp::QoS(10).reliable());
+    "planned_path", rclcpp::QoS(10).reliable());
 
   // ----------------------------------------------------------
   // 创建TF监听器

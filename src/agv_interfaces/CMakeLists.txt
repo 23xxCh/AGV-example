@@ -25,8 +25,12 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/NavGoal.msg"
   "msg/PathWithCost.msg"
   "msg/AGVStatus.msg"
+  "msg/TaskRequest.msg"
+  "msg/FleetStatus.msg"
   "srv/PathPlan.srv"
   "srv/GetMap.srv"
+  "srv/AssignTask.srv"
+  "srv/ReservePath.srv"
   "action/Navigate.action"
   DEPENDENCIES std_msgs geometry_msgs nav_msgs
 )

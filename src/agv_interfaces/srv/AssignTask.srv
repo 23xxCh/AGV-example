@@ -1,0 +1,5 @@
+agv_interfaces/TaskRequest task
+---
+bool success
+string assigned_agv_id
+string error_msg

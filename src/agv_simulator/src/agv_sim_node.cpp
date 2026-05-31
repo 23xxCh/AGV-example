@@ -18,6 +18,7 @@
 #include <geometry_msgs/msg/transform_stamped.hpp>
 #include <visualization_msgs/msg/marker.hpp>
 #include <tf2_ros/transform_broadcaster.h>
+#include <array>
 #include <chrono>
 #include <cmath>
 
@@ -36,12 +37,35 @@ public:
     this->declare_parameter("initial_theta", 0.0);
     this->declare_parameter("update_rate", 50.0);
     this->declare_parameter("base_frame", std::string("base_link"));
+    this->declare_parameter("agv_id", std::string("agv_001"));
 
     x_ = this->get_parameter("initial_x").as_double();
     y_ = this->get_parameter("initial_y").as_double();
     theta_ = this->get_parameter("initial_theta").as_double();
     double rate = this->get_parameter("update_rate").as_double();
     base_frame_ = this->get_parameter("base_frame").as_string();
+    agv_id_ = this->get_parameter("agv_id").as_string();
+
+    // 根据agv_id选择不同颜色（用于多车可视化区分）
+    // 预定义6种颜色：红、绿、蓝、黄、青、品红
+    std::vector<std::array<float, 3>> colors = {
+      {1.0, 0.0, 0.0},  // 红色
+      {0.0, 1.0, 0.0},  // 绿色
+      {0.0, 0.3, 1.0},  // 蓝色
+      {1.0, 1.0, 0.0},  // 黄色
+      {0.0, 1.0, 1.0},  // 青色
+      {1.0, 0.0, 1.0},  // 品红
+    };
+    // 从agv_id中提取数字作为颜色索引
+    int color_idx = 0;
+    try {
+      color_idx = std::stoi(agv_id_.substr(agv_id_.find_last_of('_') + 1)) % colors.size();
+    } catch (...) {
+      color_idx = 0;
+    }
+    color_r_ = colors[color_idx][0];
+    color_g_ = colors[color_idx][1];
+    color_b_ = colors[color_idx][2];
 
     tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
     marker_pub_ = this->create_publisher<visualization_msgs::msg::Marker>(
@@ -96,7 +120,7 @@ private:
     tf.transform.rotation.z = std::sin(theta_ / 2.0);
     tf_broadcaster_->sendTransform(tf);
 
-    // 发布机器人箭头Marker
+    // 发布机器人箭头Marker（颜色根据agv_id区分）
     visualization_msgs::msg::Marker arrow;
     arrow.header.frame_id = "map";
     arrow.header.stamp = now;
@@ -112,13 +136,13 @@ private:
     arrow.scale.x = 0.3;
     arrow.scale.y = 0.15;
     arrow.scale.z = 0.1;
-    arrow.color.r = 0.0;
-    arrow.color.g = 1.0;
-    arrow.color.b = 0.0;
+    arrow.color.r = color_r_;
+    arrow.color.g = color_g_;
+    arrow.color.b = color_b_;
     arrow.color.a = 1.0;
     marker_pub_->publish(arrow);
 
-    // 发布机器人底盘Marker（蓝色矩形）
+    // 发布机器人底盘Marker（同色半透明）
     visualization_msgs::msg::Marker box;
     box.header = arrow.header;
     box.ns = "agv_body";
@@ -132,16 +156,18 @@ private:
     box.scale.x = 0.35;
     box.scale.y = 0.25;
     box.scale.z = 0.04;
-    box.color.r = 0.0;
-    box.color.g = 0.3;
-    box.color.b = 1.0;
-    box.color.a = 0.7;
+    box.color.r = color_r_;
+    box.color.g = color_g_;
+    box.color.b = color_b_;
+    box.color.a = 0.5;
     marker_pub_->publish(box);
   }
 
   double x_, y_, theta_;
   bool has_cmd_;
   std::string base_frame_;
+  std::string agv_id_;
+  float color_r_, color_g_, color_b_;
   geometry_msgs::msg::Twist current_vel_;
 
   std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;

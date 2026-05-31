@@ -1,0 +1,9 @@
+string agv_id
+nav_msgs/Path path
+float64 start_time
+float64 speed
+---
+bool success
+string conflict_agv_id
+float64 wait_time
+string error_msg

@@ -29,8 +29,8 @@ DWAPlanner::DWAPlanner(const rclcpp::NodeOptions & options)
   this->declare_parameter("base_frame", std::string("base_link"));
   this->declare_parameter("map_frame", std::string("map"));
   this->declare_parameter("control_frequency", 10.0);
-  this->declare_parameter("costmap_topic", std::string("/map"));
-  this->declare_parameter("path_topic", std::string("/planned_path"));
+  this->declare_parameter("costmap_topic", std::string("map"));
+  this->declare_parameter("path_topic", std::string("planned_path"));
 
   base_frame_ = this->get_parameter("base_frame").as_string();
   map_frame_ = this->get_parameter("map_frame").as_string();

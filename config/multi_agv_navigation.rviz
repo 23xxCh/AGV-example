@@ -1,0 +1,252 @@
+# ============================================================
+# multi_agv_navigation.rviz - 多AGV可视化配置文件
+# ============================================================
+#
+# 【显示内容】
+# - Grid: 参考网格
+# - Map: 栅格地图（/map话题）
+# - AGV 1/2 Path: 各AGV的规划路径
+# - AGV 1/2 Markers: 各AGV的机器人位置
+# - AGV 1/2 DWA: 各AGV的DWA轨迹可视化
+# - TF: 坐标系变换（含两台AGV的TF树）
+
+Panels:
+  - Class: rviz_common/Displays
+    Help Width: 78
+    Name: Displays
+    Property Tree Widget:
+      Expanded:
+        - /Global Options1
+        - /Map1
+        - /AGV 11
+        - /AGV 21
+      Splitter Ratio: 0.5
+    Tree Height: 400
+  - Class: rviz_common/Views
+    Expanded:
+      - /Current View1
+    Name: Views
+    Splitter Ratio: 0.5
+
+Visualization Manager:
+  Class: ""
+  Displays:
+    # ---- 参考网格 ----
+    - Alpha: 0.5
+      Cell Count: 50
+      Cell Size: 1
+      Class: rviz_default_plugins/Grid
+      Color: 160; 160; 164
+      Enabled: true
+      Line Style:
+        Line Width: 0.03
+        Value: Lines
+      Name: Grid
+      Normal Cell Count: 0
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Plane: XY
+      Plane Cell Count: 50
+      Reference Frame: <Fixed Frame>
+      Value: true
+
+    # ---- 栅格地图显示 ----
+    - Alpha: 0.7
+      Class: rviz_default_plugins/Map
+      Color Scheme: map
+      Draw Behind: false
+      Enabled: true
+      Name: Map
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /map
+      Update Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /map_updates
+      Use Timestamp: false
+      Value: true
+
+    # ============================================================
+    # AGV 1（红色）
+    # ============================================================
+
+    # ---- AGV 1: 规划路径（红色）----
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz_default_plugins/Path
+      Color: 255; 50; 50
+      Enabled: true
+      Head Diameter: 0.15
+      Head Length: 0.1
+      Length: 0.3
+      Line Style: Lines
+      Line Width: 0.05
+      Name: AGV 1 Path
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Pose Color: 255; 85; 255
+      Pose Style: None
+      Radius: 0.03
+      Shaft Diameter: 0.05
+      Shaft Length: 0.1
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /agv_001/planned_path
+      Value: true
+
+    # ---- AGV 1: 机器人Marker（红色）----
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: AGV 1 Markers
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /agv_001/robot_marker
+      Value: true
+
+    # ---- AGV 1: DWA可视化 ----
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: AGV 1 DWA
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /agv_001/dwa_markers
+      Value: true
+
+    # ============================================================
+    # AGV 2（蓝色）
+    # ============================================================
+
+    # ---- AGV 2: 规划路径（蓝色）----
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz_default_plugins/Path
+      Color: 50; 100; 255
+      Enabled: true
+      Head Diameter: 0.15
+      Head Length: 0.1
+      Length: 0.3
+      Line Style: Lines
+      Line Width: 0.05
+      Name: AGV 2 Path
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Pose Color: 255; 85; 255
+      Pose Style: None
+      Radius: 0.03
+      Shaft Diameter: 0.05
+      Shaft Length: 0.1
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /agv_002/planned_path
+      Value: true
+
+    # ---- AGV 2: 机器人Marker（蓝色）----
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: AGV 2 Markers
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /agv_002/robot_marker
+      Value: true
+
+    # ---- AGV 2: DWA可视化 ----
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: AGV 2 DWA
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /agv_002/dwa_markers
+      Value: true
+
+    # ---- TF坐标系显示 ----
+    - Class: rviz_default_plugins/TF
+      Enabled: true
+      Frame Timeout: 15
+      Frames:
+        All Enabled: true
+      Marker Scale: 0.3
+      Name: TF
+      Show Arrows: true
+      Show Axes: true
+      Show Names: true
+      Tree:
+        {}
+      Update Interval: 0
+      Value: true
+
+  Enabled: true
+  Global Options:
+    Background Color: 48; 48; 48
+    Fixed Frame: map
+    Frame Rate: 30
+  Name: root
+  Tools:
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/SetInitialPose
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /initialpose
+    - Class: rviz_default_plugins/SetGoal
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /goal_pose
+  Value: true
+  Views:
+    Current:
+      Class: rviz_default_plugins/TopDownOrtho
+      Enabled: true
+      Name: Current
+      Near Clip Distance: 0.01
+      Scale: 30
+      Target Frame: <Fixed Frame>
+      Value: TopDownOrtho (rviz_default_plugins)
+      X: 2
+      Y: 1.5
+    Saved: ~
+
+Window Geometry:
+  Displays:
+    collapsed: false
+  Height: 800
+  QMainWindow State: ""
+  Views:
+    collapsed: false
+  Width: 1200
+  X: 100
+  Y: 100

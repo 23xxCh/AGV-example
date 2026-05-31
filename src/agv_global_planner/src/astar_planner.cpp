@@ -40,7 +40,7 @@ AstarPlanner::AstarPlanner(const rclcpp::NodeOptions & options)
   this->declare_parameter("lethal_cost", 254);
 
   // 代价地图话题名
-  this->declare_parameter("costmap_topic", std::string("/map"));
+  this->declare_parameter("costmap_topic", std::string("map"));
 
   // ----------------------------------------------------------
   // 读取参数并创建A*搜索实例
