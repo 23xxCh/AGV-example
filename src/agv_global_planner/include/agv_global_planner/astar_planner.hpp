@@ -129,6 +129,25 @@ private:
     const std::vector<GridCell> & grid_path,
     const nav_msgs::msg::MapMetaData & map_info) const;
 
+  /**
+   * 路径平滑 - 使用Chaikin角切算法
+   * Chaikin算法原理：
+   *   对每对相邻点(P1, P2)，生成两个新点：
+   *   Q = P1 + 0.25 * (P2 - P1)  -- 25%处
+   *   R = P1 + 0.75 * (P2 - P1)  -- 75%处
+   *   用Q和R替代原来的边，切除尖角
+   *   多次迭代后路径变得平滑
+   *
+   * @param path 原始路径
+   * @param costmap 代价地图（用于碰撞检测）
+   * @param iterations 迭代次数（越多越平滑，建议2~4）
+   * @return 平滑后的路径
+   */
+  nav_msgs::msg::Path smoothPath(
+    const nav_msgs::msg::Path & path,
+    const nav_msgs::msg::OccupancyGrid & costmap,
+    int iterations = 3) const;
+
   // ---- 成员变量 ----
 
   // A*搜索算法实例

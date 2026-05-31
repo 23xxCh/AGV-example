@@ -223,7 +223,10 @@ void AstarPlanner::handlePathPlanRequest(
   // ----------------------------------------------------------
   if (found) {
     // 规划成功：将格子路径转换为世界坐标路径
-    nav_msgs::msg::Path path_msg = gridPathToPathMsg(grid_path, costmap_copy.info);
+    nav_msgs::msg::Path raw_path = gridPathToPathMsg(grid_path, costmap_copy.info);
+
+    // 路径平滑处理
+    nav_msgs::msg::Path path_msg = smoothPath(raw_path, costmap_copy, 3);
 
     response->success = true;
     response->path = path_msg;
@@ -371,6 +374,125 @@ nav_msgs::msg::Path AstarPlanner::gridPathToPathMsg(
   }
 
   return path_msg;
+}
+
+// ============================================================
+// smoothPath - Chaikin角切路径平滑
+// ============================================================
+nav_msgs::msg::Path AstarPlanner::smoothPath(
+  const nav_msgs::msg::Path & path,
+  const nav_msgs::msg::OccupancyGrid & costmap,
+  int iterations) const
+{
+  if (path.poses.size() < 3) {
+    return path;  // 点太少，无法平滑
+  }
+
+  // 提取路径点为简单的(x,y)列表
+  struct Point2D { double x, y; };
+  std::vector<Point2D> points;
+  points.reserve(path.poses.size());
+  for (const auto & pose : path.poses) {
+    points.push_back({pose.pose.position.x, pose.pose.position.y});
+  }
+
+  // Chaikin角切迭代
+  for (int iter = 0; iter < iterations; ++iter) {
+    std::vector<Point2D> new_points;
+    new_points.reserve(points.size() * 2);
+
+    // 保留起点
+    new_points.push_back(points.front());
+
+    for (size_t i = 0; i < points.size() - 1; ++i) {
+      const auto & p1 = points[i];
+      const auto & p2 = points[i + 1];
+
+      // 在25%和75%处生成新点
+      Point2D q, r;
+      q.x = p1.x + 0.25 * (p2.x - p1.x);
+      q.y = p1.y + 0.25 * (p2.y - p1.y);
+      r.x = p1.x + 0.75 * (p2.x - p1.x);
+      r.y = p1.y + 0.75 * (p2.y - p1.y);
+
+      new_points.push_back(q);
+      new_points.push_back(r);
+    }
+
+    // 保留终点
+    new_points.push_back(points.back());
+
+    points = std::move(new_points);
+  }
+
+  // 碰撞检测：检查平滑后的路径是否安全
+  // 如果某个点在障碍物上，回退到该段的中点
+  double resolution = costmap.info.resolution;
+  double origin_x = costmap.info.origin.position.x;
+  double origin_y = costmap.info.origin.position.y;
+  unsigned int width = costmap.info.width;
+  unsigned int height = costmap.info.height;
+
+  auto isSafe = [&](double wx, double wy) -> bool {
+    int gx = static_cast<int>((wx - origin_x) / resolution);
+    int gy = static_cast<int>((wy - origin_y) / resolution);
+    if (gx < 0 || gy < 0 ||
+        static_cast<unsigned int>(gx) >= width ||
+        static_cast<unsigned int>(gy) >= height) {
+      return false;
+    }
+    size_t idx = static_cast<size_t>(gy) * width + gx;
+    int8_t val = costmap.data[idx];
+    return (val >= 0 && val < 80);  // 80以下视为安全
+  };
+
+  // 验证平滑路径，不安全的点保留原始位置
+  for (size_t i = 1; i < points.size() - 1; ++i) {
+    if (!isSafe(points[i].x, points[i].y)) {
+      // 找到最近的原始路径点作为替代
+      double min_dist = std::numeric_limits<double>::infinity();
+      size_t nearest = 0;
+      for (size_t j = 0; j < path.poses.size(); ++j) {
+        double dx = points[i].x - path.poses[j].pose.position.x;
+        double dy = points[i].y - path.poses[j].pose.position.y;
+        double d = dx * dx + dy * dy;
+        if (d < min_dist) {
+          min_dist = d;
+          nearest = j;
+        }
+      }
+      points[i].x = path.poses[nearest].pose.position.x;
+      points[i].y = path.poses[nearest].pose.position.y;
+    }
+  }
+
+  // 构建平滑后的Path消息
+  nav_msgs::msg::Path smoothed;
+  smoothed.header = path.header;
+  smoothed.poses.resize(points.size());
+
+  for (size_t i = 0; i < points.size(); ++i) {
+    smoothed.poses[i].header = path.header;
+    smoothed.poses[i].pose.position.x = points[i].x;
+    smoothed.poses[i].pose.position.y = points[i].y;
+    smoothed.poses[i].pose.position.z = 0.0;
+
+    // 计算朝向
+    double yaw = 0.0;
+    if (i < points.size() - 1) {
+      double dx = points[i + 1].x - points[i].x;
+      double dy = points[i + 1].y - points[i].y;
+      yaw = std::atan2(dy, dx);
+    } else if (i > 0) {
+      double dx = points[i].x - points[i - 1].x;
+      double dy = points[i].y - points[i - 1].y;
+      yaw = std::atan2(dy, dx);
+    }
+    smoothed.poses[i].pose.orientation.w = std::cos(yaw / 2.0);
+    smoothed.poses[i].pose.orientation.z = std::sin(yaw / 2.0);
+  }
+
+  return smoothed;
 }
 
 }  // namespace agv_global_planner
