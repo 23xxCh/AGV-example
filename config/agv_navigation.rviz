@@ -19,6 +19,7 @@ Panels:
         - /Map1
         - /Path1
         - /Markers1
+        - /DWA Markers1
       Splitter Ratio: 0.5
     Tree Height: 400
   - Class: rviz_common/Views
@@ -112,6 +113,19 @@ Visualization Manager:
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /robot_marker
+      Value: true
+
+    # ---- DWA可视化Marker显示 ----
+    # 显示DWA候选轨迹、最优轨迹、局部目标、速度箭头、机器人轮廓
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: DWA Markers
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /dwa_markers
       Value: true
 
     # ---- TF坐标系显示 ----

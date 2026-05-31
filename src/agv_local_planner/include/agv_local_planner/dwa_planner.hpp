@@ -40,6 +40,8 @@
 #include "nav_msgs/msg/path.hpp"
 #include "geometry_msgs/msg/twist.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
+#include "visualization_msgs/msg/marker.hpp"
+#include "visualization_msgs/msg/marker_array.hpp"
 #include "tf2_ros/buffer.h"
 #include "tf2_ros/transform_listener.h"
 
@@ -96,6 +98,16 @@ private:
    */
   DWAParams loadParams();
 
+  /**
+   * 发布可视化Marker
+   * 包括：候选轨迹、局部目标、速度箭头、机器人轮廓
+   */
+  void publishVisualization(
+    const Pose2D & robot_pose,
+    const Velocity & best_vel,
+    const Pose2D & local_goal,
+    const std::vector<Trajectory> & trajectories);
+
   // ---- 成员变量 ----
 
   // DWA算法实例
@@ -124,6 +136,9 @@ private:
 
   // 发布器：速度指令
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_pub_;
+
+  // 发布器：可视化Marker
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr marker_pub_;
 
   // 控制定时器
   rclcpp::TimerBase::SharedPtr control_timer_;

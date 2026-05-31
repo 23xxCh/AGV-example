@@ -219,6 +219,14 @@ public:
    */
   const std::vector<Trajectory> & getRecentTrajectories() const { return recent_trajectories_; }
 
+  /**
+   * 前向模拟轨迹（公开，供可视化使用）
+   */
+  Trajectory simulateTrajectory(
+    const Pose2D & start_pose,
+    double v,
+    double omega) const;
+
 private:
   // ============================================================
   // 内部算法方法
@@ -235,26 +243,6 @@ private:
    * 取交集确保选出的速度在物理上可行
    */
   DynamicWindow calculateDynamicWindow(const Velocity & current_vel) const;
-
-  /**
-   * 步骤2：前向模拟轨迹
-   *
-   * 使用差分运动学模型，从当前位置开始，以给定速度前进sim_time秒：
-   *   for t = 0 to sim_time:
-   *     x     += v * cos(θ) * dt
-   *     y     += v * sin(θ) * dt
-   *     θ     += ω * dt
-   *     记录 (x, y, θ)
-   *
-   * @param start_pose 起始位姿
-   * @param v          线速度
-   * @param omega      角速度
-   * @return 模拟出的轨迹
-   */
-  Trajectory simulateTrajectory(
-    const Pose2D & start_pose,
-    double v,
-    double omega) const;
 
   /**
    * 步骤3：评分函数

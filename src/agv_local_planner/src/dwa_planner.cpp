@@ -75,6 +75,9 @@ DWAPlanner::DWAPlanner(const rclcpp::NodeOptions & options)
   cmd_vel_pub_ = this->create_publisher<geometry_msgs::msg::Twist>(
     "cmd_vel", rclcpp::QoS(10).reliable());
 
+  marker_pub_ = this->create_publisher<visualization_msgs::msg::MarkerArray>(
+    "dwa_markers", rclcpp::QoS(10).reliable());
+
   // ----------------------------------------------------------
   // 创建控制定时器
   // ----------------------------------------------------------
@@ -288,6 +291,12 @@ void DWAPlanner::controlTimerCallback()
   last_cmd_vel_.v = best_vel.v;
   last_cmd_vel_.omega = best_vel.omega;
 
+  // ----------------------------------------------------------
+  // 步骤6：发布可视化Marker
+  // ----------------------------------------------------------
+  publishVisualization(robot_pose, best_vel, local_goal,
+                       dwa_->getRecentTrajectories());
+
   RCLCPP_DEBUG(this->get_logger(),
     "DWA: 位姿(%.2f,%.2f,%.2f) 目标(%.2f,%.2f) → 速度(%.2f, %.2f)",
     robot_pose.x, robot_pose.y, robot_pose.theta,
@@ -359,6 +368,192 @@ Pose2D DWAPlanner::findLocalGoal(const Pose2D & robot_pose) const
   }
 
   return local_goal;
+}
+
+// ============================================================
+// publishVisualization - 发布可视化Marker
+// ============================================================
+void DWAPlanner::publishVisualization(
+  const Pose2D & robot_pose,
+  const Velocity & best_vel,
+  const Pose2D & local_goal,
+  const std::vector<Trajectory> & trajectories)
+{
+  visualization_msgs::msg::MarkerArray markers;
+  auto now = this->now();
+
+  // ----------------------------------------------------------
+  // Marker1：候选轨迹（灰色线段，最多显示50条）
+  // ----------------------------------------------------------
+  // DWA会评估200条候选轨迹，全部显示太密
+  // 只显示一部分，让用户看到DWA在"思考"哪些路径
+  size_t traj_step = std::max(trajectories.size() / 50, size_t(1));
+
+  for (size_t i = 0; i < trajectories.size(); i += traj_step) {
+    const auto & traj = trajectories[i];
+
+    visualization_msgs::msg::Marker line;
+    line.header.frame_id = "map";
+    line.header.stamp = now;
+    line.ns = "dwa_trajectories";
+    line.id = static_cast<int>(i);
+    line.type = visualization_msgs::msg::Marker::LINE_STRIP;
+    line.action = visualization_msgs::msg::Marker::ADD;
+    line.pose.orientation.w = 1.0;
+    line.scale.x = 0.02;  // 线宽2cm
+
+    // 灰色半透明，表示"候选"轨迹
+    line.color.r = 0.7;
+    line.color.g = 0.7;
+    line.color.b = 0.7;
+    line.color.a = 0.3;
+
+    // 将轨迹点转为Marker点
+    for (const auto & pose : traj.poses) {
+      geometry_msgs::msg::Point p;
+      p.x = pose.x;
+      p.y = pose.y;
+      p.z = 0.02;  // 略高于地面，避免Z-fighting
+      line.points.push_back(p);
+    }
+
+    line.lifetime = rclcpp::Duration::from_seconds(0.2);
+    markers.markers.push_back(line);
+  }
+
+  // ----------------------------------------------------------
+  // Marker2：最优轨迹（绿色粗线）
+  // ----------------------------------------------------------
+  // 这是DWA最终选择的轨迹，用绿色高亮显示
+  if (!trajectories.empty()) {
+    // 找到得分最高的轨迹（最后一条是最近评估的）
+    // 简化：使用best_vel对应的轨迹
+    visualization_msgs::msg::Marker best_line;
+    best_line.header.frame_id = "map";
+    best_line.header.stamp = now;
+    best_line.ns = "dwa_best_trajectory";
+    best_line.id = 0;
+    best_line.type = visualization_msgs::msg::Marker::LINE_STRIP;
+    best_line.action = visualization_msgs::msg::Marker::ADD;
+    best_line.pose.orientation.w = 1.0;
+    best_line.scale.x = 0.05;  // 线宽5cm，比候选轨迹粗
+
+    // 绿色高亮，表示"最优"轨迹
+    best_line.color.r = 0.0;
+    best_line.color.g = 1.0;
+    best_line.color.b = 0.0;
+    best_line.color.a = 0.8;
+
+    // 模拟最优速度的轨迹
+    Trajectory best_traj = dwa_->simulateTrajectory(robot_pose, best_vel.v, best_vel.omega);
+    for (const auto & pose : best_traj.poses) {
+      geometry_msgs::msg::Point p;
+      p.x = pose.x;
+      p.y = pose.y;
+      p.z = 0.03;
+      best_line.points.push_back(p);
+    }
+
+    best_line.lifetime = rclcpp::Duration::from_seconds(0.2);
+    markers.markers.push_back(best_line);
+  }
+
+  // ----------------------------------------------------------
+  // Marker3：局部目标点（黄色球体）
+  // ----------------------------------------------------------
+  // 显示DWA正在追踪的局部目标位置
+  visualization_msgs::msg::Marker goal_marker;
+  goal_marker.header.frame_id = "map";
+  goal_marker.header.stamp = now;
+  goal_marker.ns = "dwa_local_goal";
+  goal_marker.id = 0;
+  goal_marker.type = visualization_msgs::msg::Marker::SPHERE;
+  goal_marker.action = visualization_msgs::msg::Marker::ADD;
+  goal_marker.pose.position.x = local_goal.x;
+  goal_marker.pose.position.y = local_goal.y;
+  goal_marker.pose.position.z = 0.1;
+  goal_marker.pose.orientation.w = 1.0;
+  goal_marker.scale.x = 0.2;
+  goal_marker.scale.y = 0.2;
+  goal_marker.scale.z = 0.2;
+  goal_marker.color.r = 1.0;
+  goal_marker.color.g = 1.0;
+  goal_marker.color.b = 0.0;
+  goal_marker.color.a = 0.8;
+  goal_marker.lifetime = rclcpp::Duration::from_seconds(0.2);
+  markers.markers.push_back(goal_marker);
+
+  // ----------------------------------------------------------
+  // Marker4：速度箭头（蓝色箭头）
+  // ----------------------------------------------------------
+  // 显示当前速度指令的方向和大小
+  if (std::abs(best_vel.v) > 0.01 || std::abs(best_vel.omega) > 0.01) {
+    visualization_msgs::msg::Marker arrow;
+    arrow.header.frame_id = "map";
+    arrow.header.stamp = now;
+    arrow.ns = "dwa_velocity";
+    arrow.id = 0;
+    arrow.type = visualization_msgs::msg::Marker::ARROW;
+    arrow.action = visualization_msgs::msg::Marker::ADD;
+
+    // 箭头起点：机器人位置
+    geometry_msgs::msg::Point start;
+    start.x = robot_pose.x;
+    start.y = robot_pose.y;
+    start.z = 0.15;
+
+    // 箭头终点：机器人位置 + 速度方向 * 速度大小
+    geometry_msgs::msg::Point end;
+    double speed = std::sqrt(best_vel.v * best_vel.v);
+    double arrow_len = speed * 2.0;  // 放大2倍方便观察
+    end.x = robot_pose.x + std::cos(robot_pose.theta) * arrow_len;
+    end.y = robot_pose.y + std::sin(robot_pose.theta) * arrow_len;
+    end.z = 0.15;
+
+    arrow.points.push_back(start);
+    arrow.points.push_back(end);
+    arrow.scale.x = 0.03;  // 箭头杆粗细
+    arrow.scale.y = 0.06;  // 箭头头部宽度
+    arrow.scale.z = 0.0;   // 不使用
+
+    arrow.color.r = 0.0;
+    arrow.color.g = 0.5;
+    arrow.color.b = 1.0;
+    arrow.color.a = 0.8;
+    arrow.lifetime = rclcpp::Duration::from_seconds(0.2);
+    markers.markers.push_back(arrow);
+  }
+
+  // ----------------------------------------------------------
+  // Marker5：机器人轮廓（蓝色矩形）
+  // ----------------------------------------------------------
+  // 显示机器人的实际尺寸和朝向
+  visualization_msgs::msg::Marker footprint;
+  footprint.header.frame_id = "map";
+  footprint.header.stamp = now;
+  footprint.ns = "dwa_footprint";
+  footprint.id = 0;
+  footprint.type = visualization_msgs::msg::Marker::CUBE;
+  footprint.action = visualization_msgs::msg::Marker::ADD;
+  footprint.pose.position.x = robot_pose.x;
+  footprint.pose.position.y = robot_pose.y;
+  footprint.pose.position.z = 0.02;
+  footprint.pose.orientation.w = std::cos(robot_pose.theta / 2.0);
+  footprint.pose.orientation.z = std::sin(robot_pose.theta / 2.0);
+  footprint.scale.x = 0.35;  // 机器人长度
+  footprint.scale.y = 0.25;  // 机器人宽度
+  footprint.scale.z = 0.04;  // 机器人高度
+  footprint.color.r = 0.0;
+  footprint.color.g = 0.3;
+  footprint.color.b = 1.0;
+  footprint.color.a = 0.4;  // 半透明
+  footprint.lifetime = rclcpp::Duration::from_seconds(0.2);
+  markers.markers.push_back(footprint);
+
+  // ----------------------------------------------------------
+  // 发布所有Marker
+  // ----------------------------------------------------------
+  marker_pub_->publish(markers);
 }
 
 }  // namespace agv_local_planner
