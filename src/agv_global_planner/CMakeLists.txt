@@ -84,7 +84,10 @@ if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   ament_lint_auto_find_test_dependencies()
   find_package(ament_cmake_gtest REQUIRED)
-  # 后续添加A*算法单元测试
+
+  # A*搜索算法单元测试
+  ament_add_gtest(test_astar_search test/test_astar_search.cpp)
+  target_link_libraries(test_astar_search agv_astar_planner)
 endif()
 
 ament_package()

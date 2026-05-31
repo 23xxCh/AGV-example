@@ -67,6 +67,10 @@ if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   ament_lint_auto_find_test_dependencies()
   find_package(ament_cmake_gtest REQUIRED)
+
+  # DWA算法单元测试
+  ament_add_gtest(test_dwa_search test/test_dwa_search.cpp)
+  target_link_libraries(test_dwa_search dwa_planner_lib)
 endif()
 
 ament_package()
