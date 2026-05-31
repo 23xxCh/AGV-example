@@ -37,7 +37,16 @@ ament_target_dependencies(navigation_coordinator_node
   rclcpp rclcpp_action agv_interfaces
 )
 
-install(TARGETS navigation_coordinator_lib navigation_coordinator_node
+# 协同搬运协调器节点
+add_executable(cooperative_transport_node
+  src/cooperative_transport.cpp
+)
+ament_target_dependencies(cooperative_transport_node
+  rclcpp nav_msgs geometry_msgs std_msgs
+  tf2_ros agv_interfaces
+)
+
+install(TARGETS navigation_coordinator_lib navigation_coordinator_node cooperative_transport_node
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION lib/${PROJECT_NAME}
