@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AGV 车队监控面板</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #1a1a2e; color: #eee; }
+        .header { background: #16213e; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #0f3460; }
+        .header h1 { font-size: 1.4em; color: #e94560; }
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 8px; }
+        .status-dot.connected { background: #4caf50; }
+        .status-dot.disconnected { background: #f44336; }
+        .container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 20px; max-width: 1400px; margin: 0 auto; }
+        .card { background: #16213e; border-radius: 10px; padding: 20px; border: 1px solid #0f3460; }
+        .card h2 { color: #e94560; margin-bottom: 15px; font-size: 1.1em; }
+        .fleet-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; grid-column: 1 / -1; }
+        .stat-box { background: #0f3460; border-radius: 8px; padding: 15px; text-align: center; }
+        .stat-box .value { font-size: 2em; font-weight: bold; color: #e94560; }
+        .stat-box .label { font-size: 0.85em; color: #aaa; margin-top: 5px; }
+        .agv-card { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .agv-info { display: flex; flex-direction: column; gap: 8px; }
+        .info-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #0f3460; }
+        .info-row .label { color: #aaa; }
+        .battery-bar { width: 100%; height: 20px; background: #0f3460; border-radius: 10px; overflow: hidden; }
+        .battery-fill { height: 100%; border-radius: 10px; transition: width 0.5s; }
+        .battery-fill.high { background: #4caf50; }
+        .battery-fill.medium { background: #ff9800; }
+        .battery-fill.low { background: #f44336; }
+        .status-badge { padding: 3px 10px; border-radius: 12px; font-size: 0.85em; }
+        .status-0 { background: #4caf50; } /* 空闲 */
+        .status-1 { background: #2196f3; } /* 执行中 */
+        .status-2 { background: #ff9800; } /* 充电 */
+        .status-3 { background: #f44336; } /* 故障 */
+        .canvas-container { position: relative; width: 100%; height: 300px; background: #0a0a1a; border-radius: 8px; overflow: hidden; }
+        canvas { width: 100%; height: 100%; }
+        @media (max-width: 768px) { .container { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>AGV 车队监控面板</h1>
+        <div>
+            <span class="status-dot connected" id="statusDot"></span>
+            <span id="statusText">已连接</span>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- 车队统计 -->
+        <div class="fleet-stats" id="fleetStats">
+            <div class="stat-box">
+                <div class="value" id="totalAGV">0</div>
+                <div class="label">AGV总数</div>
+            </div>
+            <div class="stat-box">
+                <div class="value" id="idleAGV">0</div>
+                <div class="label">空闲</div>
+            </div>
+            <div class="stat-box">
+                <div class="value" id="activeTasks">0</div>
+                <div class="label">执行中任务</div>
+            </div>
+            <div class="stat-box">
+                <div class="value" id="pendingTasks">0</div>
+                <div class="label">待分配任务</div>
+            </div>
+        </div>
+
+        <!-- 地图视图 -->
+        <div class="card" style="grid-column: 1 / -1;">
+            <h2>实时地图</h2>
+            <div class="canvas-container">
+                <canvas id="mapCanvas"></canvas>
+            </div>
+        </div>
+
+        <!-- AGV详情 -->
+        <div id="agvCards"></div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('mapCanvas');
+        const ctx = canvas.getContext('2d');
+        let agvData = {};
+        let fleetData = { active_tasks: 0, pending_tasks: 0 };
+        const colors = ['#e94560', '#2196f3', '#4caf50', '#ff9800', '#9c27b0'];
+
+        function resizeCanvas() {
+            const container = canvas.parentElement;
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        function drawMap() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 网格
+            ctx.strokeStyle = '#1a1a3e';
+            ctx.lineWidth = 1;
+            const gridSize = 30;
+            for (let x = 0; x < canvas.width; x += gridSize) {
+                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+            }
+            for (let y = 0; y < canvas.height; y += gridSize) {
+                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+            }
+
+            // 坐标转换（地图坐标 → 画布坐标）
+            const mapW = 4.0, mapH = 3.0;
+            const scaleX = canvas.width / mapW;
+            const scaleY = canvas.height / mapH;
+            const scale = Math.min(scaleX, scaleY) * 0.9;
+            const offsetX = (canvas.width - mapW * scale) / 2;
+            const offsetY = (canvas.height - mapH * scale) / 2;
+
+            function toCanvas(mx, my) {
+                return [offsetX + mx * scale, canvas.height - (offsetY + my * scale)];
+            }
+
+            // 绘制AGV路径
+            let colorIdx = 0;
+            for (const [agvId, data] of Object.entries(agvData)) {
+                const color = colors[colorIdx % colors.length];
+                if (data.path && data.path.length > 1) {
+                    ctx.strokeStyle = color + '80';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    const [sx, sy] = toCanvas(data.path[0].x, data.path[0].y);
+                    ctx.moveTo(sx, sy);
+                    for (let i = 1; i < data.path.length; i++) {
+                        const [px, py] = toCanvas(data.path[i].x, data.path[i].y);
+                        ctx.lineTo(px, py);
+                    }
+                    ctx.stroke();
+                }
+                colorIdx++;
+            }
+
+            // 绘制AGV
+            colorIdx = 0;
+            for (const [agvId, data] of Object.entries(agvData)) {
+                const color = colors[colorIdx % colors.length];
+                const [cx, cy] = toCanvas(data.x, data.y);
+
+                // AGV圆形
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.arc(cx, cy, 12, 0, Math.PI * 2);
+                ctx.fill();
+
+                // AGV标签
+                ctx.fillStyle = '#fff';
+                ctx.font = '10px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(agvId.replace('agv_', ''), cx, cy + 4);
+
+                // 电池指示
+                const batColor = data.battery_level > 50 ? '#4caf50' :
+                                 data.battery_level > 20 ? '#ff9800' : '#f44336';
+                ctx.fillStyle = batColor;
+                ctx.fillRect(cx - 10, cy - 20, 20 * (data.battery_level / 100), 3);
+
+                colorIdx++;
+            }
+        }
+
+        function updateUI() {
+            // 车队统计
+            const agvs = Object.values(agvData);
+            document.getElementById('totalAGV').textContent = agvs.length;
+            document.getElementById('idleAGV').textContent = agvs.filter(a => a.status === 0).length;
+            document.getElementById('activeTasks').textContent = fleetData.active_tasks;
+            document.getElementById('pendingTasks').textContent = fleetData.pending_tasks;
+
+            // AGV卡片
+            const cardsDiv = document.getElementById('agvCards');
+            cardsDiv.innerHTML = '';
+            let colorIdx = 0;
+            for (const [agvId, data] of Object.entries(agvData)) {
+                const color = colors[colorIdx % colors.length];
+                const statusNames = ['空闲', '执行中', '充电', '故障', '离线'];
+                const batteryClass = data.battery_level > 50 ? 'high' :
+                                     data.battery_level > 20 ? 'medium' : 'low';
+
+                cardsDiv.innerHTML += `
+                    <div class="card">
+                        <h2 style="color:${color}">${agvId}</h2>
+                        <div class="agv-info">
+                            <div class="info-row"><span class="label">位置</span><span>(${data.x}, ${data.y})</span></div>
+                            <div class="info-row"><span class="label">速度</span><span>${data.linear_velocity} m/s</span></div>
+                            <div class="info-row"><span class="label">状态</span><span class="status-badge status-${data.status}">${statusNames[data.status] || '未知'}</span></div>
+                            <div class="info-row"><span class="label">当前任务</span><span>${data.current_task_id || '-'}</span></div>
+                            <div class="info-row"><span class="label">电池</span>
+                                <div style="flex:1; margin-left:10px;">
+                                    <div class="battery-bar"><div class="battery-fill ${batteryClass}" style="width:${data.battery_level}%"></div></div>
+                                    <span style="font-size:0.85em">${data.battery_level}%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+                colorIdx++;
+            }
+
+            drawMap();
+        }
+
+        // 轮询获取数据
+        function fetchData() {
+            fetch('/api/data')
+                .then(r => r.json())
+                .then(data => {
+                    agvData = data.agvs || {};
+                    fleetData = data.fleet || { active_tasks: 0, pending_tasks: 0 };
+                    document.getElementById('statusDot').className = 'status-dot connected';
+                    document.getElementById('statusText').textContent = '已连接';
+                    updateUI();
+                })
+                .catch(() => {
+                    document.getElementById('statusDot').className = 'status-dot disconnected';
+                    document.getElementById('statusText').textContent = '连接断开';
+                });
+        }
+
+        setInterval(fetchData, 500);
+        fetchData();
+    </script>
+</body>
+</html>
