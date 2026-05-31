@@ -27,3 +27,12 @@ task_scheduler:
     assignment_interval: 1.0
     # 任务默认超时时间（秒）
     task_timeout: 300.0
+    # 优先级老化速率（每秒增加的优先级值）
+    # 低优先级任务等待越久，有效优先级越高，防止饥饿
+    aging_rate: 0.1
+    # 最大老化加成（防止老化超过原始优先级差距）
+    max_aging_bonus: 5.0
+    # 是否启用任务抢占（高优先级任务可抢占低优先级任务的AGV）
+    enable_preemption: true
+    # 抢占阈值：新任务优先级 - 当前任务优先级 >= 此值才触发抢占
+    preemption_threshold: 3
