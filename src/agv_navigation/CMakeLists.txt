@@ -72,7 +72,20 @@ ament_target_dependencies(data_replayer_node
   rclcpp geometry_msgs agv_interfaces
 )
 
-install(TARGETS navigation_coordinator_lib navigation_coordinator_node cooperative_transport_node data_recorder_node data_replayer_node
+# 多楼层管理器节点
+add_executable(floor_manager_node
+  src/floor_manager.cpp
+  src/floor_manager_node.cpp
+)
+target_include_directories(floor_manager_node PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+ament_target_dependencies(floor_manager_node
+  rclcpp nav_msgs geometry_msgs agv_interfaces
+)
+
+install(TARGETS navigation_coordinator_lib navigation_coordinator_node cooperative_transport_node data_recorder_node data_replayer_node floor_manager_node
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION lib/${PROJECT_NAME}
