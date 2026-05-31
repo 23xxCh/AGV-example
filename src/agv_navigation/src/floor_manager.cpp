@@ -12,9 +12,8 @@
  * 6. AGV离开电梯 → 在新楼层继续导航
  */
 
-#include "agv_navigation/floor_manager.hpp"
+#include "floor_manager.hpp"
 #include <fstream>
-#include <yaml-cpp/yaml.h>
 
 namespace agv_navigation
 {
