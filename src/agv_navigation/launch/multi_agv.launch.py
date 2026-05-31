@@ -67,6 +67,10 @@ def create_agv_group(agv_id: str, initial_x: float, initial_y: float,
         'avg_speed': 0.3,
         'max_reservation_retries': 10,
         'reservation_retry_interval': 2.0,
+        # 路径重规划参数
+        'stuck_timeout': 10.0,      # 卡住10秒触发重规划
+        'stuck_distance': 0.1,      # 距离变化<0.1m视为卡住
+        'max_replans': 3,           # 最多重规划3次
     }
 
     # ----------------------------------------------------------

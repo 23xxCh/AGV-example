@@ -102,6 +102,15 @@ private:
   double avg_speed_;         // 平均速度（用于预约计算）
   int max_reservation_retries_;  // 最大预约重试次数
   double reservation_retry_interval_;  // 预约重试间隔
+
+  // 路径重规划参数
+  double stuck_timeout_;     // 卡住超时（秒），超过此时间未接近目标则重规划
+  double stuck_distance_;    // 卡住判定距离（米），距离变化小于此值视为卡住
+  int max_replans_;          // 最大重规划次数
+
+  // 路径预约/释放辅助函数
+  bool reservePath(const nav_msgs::msg::Path & path);
+  void releasePath();
 };
 
 }  // namespace agv_navigation

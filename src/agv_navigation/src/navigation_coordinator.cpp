@@ -50,6 +50,15 @@ NavigationCoordinator::NavigationCoordinator(const rclcpp::NodeOptions & options
   max_reservation_retries_ = this->get_parameter("max_reservation_retries").as_int();
   reservation_retry_interval_ = this->get_parameter("reservation_retry_interval").as_double();
 
+  // 路径重规划参数
+  this->declare_parameter("stuck_timeout", 10.0);
+  this->declare_parameter("stuck_distance", 0.1);
+  this->declare_parameter("max_replans", 3);
+
+  stuck_timeout_ = this->get_parameter("stuck_timeout").as_double();
+  stuck_distance_ = this->get_parameter("stuck_distance").as_double();
+  max_replans_ = this->get_parameter("max_replans").as_int();
+
   // ----------------------------------------------------------
   // 创建Action服务器
   // ----------------------------------------------------------
@@ -126,6 +135,64 @@ void NavigationCoordinator::handleAccepted(
 }
 
 // ============================================================
+// reservePath - 向交通管理器预约路径
+// ============================================================
+bool NavigationCoordinator::reservePath(const nav_msgs::msg::Path & path)
+{
+  for (int retry = 0; retry < max_reservation_retries_; ++retry) {
+    if (!reserve_path_client_->wait_for_service(std::chrono::seconds(2))) {
+      RCLCPP_WARN(this->get_logger(), "交通管理器服务不可用，跳过预约");
+      return true;  // 服务不可用时直接放行
+    }
+
+    auto req = std::make_shared<agv_interfaces::srv::ReservePath::Request>();
+    req->agv_id = agv_id_;
+    req->path = path;
+    req->start_time = this->now().seconds();
+    req->speed = avg_speed_;
+
+    auto future = reserve_path_client_->async_send_request(req);
+    auto status = future.wait_for(std::chrono::seconds(3));
+
+    if (status != std::future_status::ready) {
+      RCLCPP_WARN(this->get_logger(), "预约请求超时，重试 %d/%d", retry + 1, max_reservation_retries_);
+      std::this_thread::sleep_for(std::chrono::duration<double>(reservation_retry_interval_));
+      continue;
+    }
+
+    auto resp = future.get();
+    if (resp->success) {
+      RCLCPP_INFO(this->get_logger(), "路径预约成功: %s", agv_id_.c_str());
+      return true;
+    }
+
+    // 有冲突，等待建议时间后重试
+    double wait_time = std::max(resp->wait_time, reservation_retry_interval_);
+    RCLCPP_INFO(this->get_logger(),
+      "路径冲突（与%s），等待%.1fs后重试 %d/%d",
+      resp->conflict_agv_id.c_str(), wait_time, retry + 1, max_reservation_retries_);
+    std::this_thread::sleep_for(std::chrono::duration<double>(wait_time));
+  }
+
+  return false;
+}
+
+// ============================================================
+// releasePath - 释放路径预约
+// ============================================================
+void NavigationCoordinator::releasePath()
+{
+  if (!release_path_client_->wait_for_service(std::chrono::seconds(1))) {
+    RCLCPP_WARN(this->get_logger(), "交通管理器不可用，跳过释放");
+    return;
+  }
+  auto req = std::make_shared<agv_interfaces::srv::ReservePath::Request>();
+  req->agv_id = agv_id_;
+  release_path_client_->async_send_request(req);
+  RCLCPP_INFO(this->get_logger(), "路径已释放: %s", agv_id_.c_str());
+}
+
+// ============================================================
 // execute - 执行导航（完整流程）
 // ============================================================
 void NavigationCoordinator::execute(
@@ -140,115 +207,63 @@ void NavigationCoordinator::execute(
   // ----------------------------------------------------------
   // 步骤1：调用全局规划器获取路径
   // ----------------------------------------------------------
-  // 等待服务可用
-  if (!path_plan_client_->wait_for_service(std::chrono::seconds(5))) {
+  auto planPath = [this, &goal]() -> nav_msgs::msg::Path {
+    nav_msgs::msg::Path empty_path;
+
+    if (!path_plan_client_->wait_for_service(std::chrono::seconds(5))) {
+      RCLCPP_ERROR(this->get_logger(), "全局规划服务不可用: %s", planner_service_.c_str());
+      return empty_path;
+    }
+
+    auto req = std::make_shared<agv_interfaces::srv::PathPlan::Request>();
+    req->goal = goal->goal_position;
+    req->use_current_pose = goal->use_current_pose;
+    req->planner_id = "astar";
+
+    // 从TF查询当前机器人位置作为起点
+    try {
+      auto tf = tf_buffer_->lookupTransform(map_frame_, base_frame_, tf2::TimePointZero);
+      req->start.x = tf.transform.translation.x;
+      req->start.y = tf.transform.translation.y;
+      req->start.z = 0.0;
+    } catch (const tf2::TransformException &) {
+      req->start.x = 0.15;
+      req->start.y = 0.15;
+      req->start.z = 0.0;
+      RCLCPP_WARN(this->get_logger(), "TF查询失败，使用默认起点(0.15, 0.15)");
+    }
+
+    auto future = path_plan_client_->async_send_request(req);
+    auto status = future.wait_for(std::chrono::duration<double>(goal->max_planning_time));
+
+    if (status != std::future_status::ready) {
+      RCLCPP_ERROR(this->get_logger(), "全局规划超时");
+      return empty_path;
+    }
+
+    auto resp = future.get();
+    if (!resp->success) {
+      RCLCPP_ERROR(this->get_logger(), "全局规划失败: %s", resp->error_msg.c_str());
+      return empty_path;
+    }
+
+    RCLCPP_INFO(this->get_logger(), "全局规划成功，路径点数: %zu", resp->path.poses.size());
+    return resp->path;
+  };
+
+  // 执行首次规划
+  nav_msgs::msg::Path current_path = planPath();
+  if (current_path.poses.empty()) {
     result->success = false;
-    result->error_msg = "全局规划服务不可用: " + planner_service_;
+    result->error_msg = "全局规划失败";
     goal_handle->abort(result);
-    RCLCPP_ERROR(this->get_logger(), "%s", result->error_msg.c_str());
     return;
   }
-
-  // 构建规划请求
-  auto plan_request = std::make_shared<agv_interfaces::srv::PathPlan::Request>();
-  plan_request->goal = goal->goal_position;
-  plan_request->use_current_pose = goal->use_current_pose;
-  plan_request->planner_id = "astar";
-
-  // 始终从TF查询当前机器人位置作为起点
-  try {
-    auto tf = tf_buffer_->lookupTransform(map_frame_, base_frame_, tf2::TimePointZero);
-    plan_request->start.x = tf.transform.translation.x;
-    plan_request->start.y = tf.transform.translation.y;
-    plan_request->start.z = 0.0;
-  } catch (const tf2::TransformException &) {
-    // TF查询失败时使用默认起点
-    plan_request->start.x = 0.15;
-    plan_request->start.y = 0.15;
-    plan_request->start.z = 0.0;
-    RCLCPP_WARN(this->get_logger(), "TF查询失败，使用默认起点(0.15, 0.15)");
-  }
-
-  // 调用全局规划服务
-  auto plan_future = path_plan_client_->async_send_request(plan_request);
-
-  // 等待规划结果（最多等待max_planning_time秒）
-  auto status = plan_future.wait_for(
-    std::chrono::duration<double>(goal->max_planning_time));
-
-  if (status != std::future_status::ready) {
-    result->success = false;
-    result->error_msg = "全局规划超时";
-    goal_handle->abort(result);
-    RCLCPP_ERROR(this->get_logger(), "%s", result->error_msg.c_str());
-    return;
-  }
-
-  auto plan_response = plan_future.get();
-  if (!plan_response->success) {
-    result->success = false;
-    result->error_msg = "全局规划失败: " + plan_response->error_msg;
-    goal_handle->abort(result);
-    RCLCPP_ERROR(this->get_logger(), "%s", result->error_msg.c_str());
-    return;
-  }
-
-  RCLCPP_INFO(this->get_logger(), "全局规划成功，路径点数: %zu",
-    plan_response->path.poses.size());
 
   // ----------------------------------------------------------
   // 步骤2：向交通管理器预约路径
   // ----------------------------------------------------------
-  // 预约机制防止多车碰撞：AGV规划好路径后，先预约再行驶
-  // 如果路径与其他AGV冲突，等待对方通过后重试
-  bool reserved = false;
-  for (int retry = 0; retry < max_reservation_retries_; ++retry) {
-    // 检查是否被取消
-    if (goal_handle->is_canceling()) {
-      result->success = false;
-      result->error_msg = "导航被取消（预约阶段）";
-      goal_handle->canceled(result);
-      return;
-    }
-
-    // 调用reserve_path服务
-    if (!reserve_path_client_->wait_for_service(std::chrono::seconds(2))) {
-      RCLCPP_WARN(this->get_logger(), "交通管理器服务不可用，跳过预约");
-      reserved = true;  // 服务不可用时直接放行
-      break;
-    }
-
-    auto reserve_req = std::make_shared<agv_interfaces::srv::ReservePath::Request>();
-    reserve_req->agv_id = agv_id_;
-    reserve_req->path = plan_response->path;
-    reserve_req->start_time = this->now().seconds();
-    reserve_req->speed = avg_speed_;
-
-    auto reserve_future = reserve_path_client_->async_send_request(reserve_req);
-    auto reserve_status = reserve_future.wait_for(std::chrono::seconds(3));
-
-    if (reserve_status != std::future_status::ready) {
-      RCLCPP_WARN(this->get_logger(), "预约请求超时，重试 %d/%d", retry + 1, max_reservation_retries_);
-      std::this_thread::sleep_for(std::chrono::duration<double>(reservation_retry_interval_));
-      continue;
-    }
-
-    auto reserve_resp = reserve_future.get();
-    if (reserve_resp->success) {
-      reserved = true;
-      RCLCPP_INFO(this->get_logger(), "路径预约成功: %s", agv_id_.c_str());
-      break;
-    } else {
-      // 有冲突，等待建议时间后重试
-      double wait_time = std::max(reserve_resp->wait_time, reservation_retry_interval_);
-      RCLCPP_INFO(this->get_logger(),
-        "路径冲突（与%s），等待%.1fs后重试 %d/%d",
-        reserve_resp->conflict_agv_id.c_str(), wait_time, retry + 1, max_reservation_retries_);
-      std::this_thread::sleep_for(std::chrono::duration<double>(wait_time));
-    }
-  }
-
-  if (!reserved) {
+  if (!reservePath(current_path)) {
     result->success = false;
     result->error_msg = "路径预约失败：超过最大重试次数";
     goal_handle->abort(result);
@@ -259,37 +274,26 @@ void NavigationCoordinator::execute(
   // ----------------------------------------------------------
   // 步骤3：发布路径给DWA局部避障器
   // ----------------------------------------------------------
-  path_pub_->publish(plan_response->path);
+  path_pub_->publish(current_path);
 
   // ----------------------------------------------------------
-  // 定义释放路径的辅助函数
-  // ----------------------------------------------------------
-  // 导航结束（成功/失败/取消）时必须释放预约，否则其他AGV无法使用该路径
-  auto release_path = [this]() {
-    if (!release_path_client_->wait_for_service(std::chrono::seconds(1))) {
-      RCLCPP_WARN(this->get_logger(), "交通管理器不可用，跳过释放");
-      return;
-    }
-    auto req = std::make_shared<agv_interfaces::srv::ReservePath::Request>();
-    req->agv_id = agv_id_;
-    release_path_client_->async_send_request(req);
-    RCLCPP_INFO(this->get_logger(), "路径已释放: %s", agv_id_.c_str());
-  };
-
-  // ----------------------------------------------------------
-  // 步骤4：监控循环
+  // 步骤4：监控循环（含路径重规划）
   // ----------------------------------------------------------
   auto start_time = this->now();
   auto feedback_period = std::chrono::duration<double>(1.0 / feedback_rate_);
 
-  // 目标位姿
   double goal_x = goal->goal_position.x;
   double goal_y = goal->goal_position.y;
+
+  // 卡住检测变量
+  double last_progress_distance = std::numeric_limits<double>::infinity();
+  auto last_progress_time = this->now();
+  int replan_count = 0;
 
   while (rclcpp::ok()) {
     // 检查是否被取消
     if (goal_handle->is_canceling()) {
-      release_path();  // 释放路径预约
+      releasePath();
       result->success = false;
       result->error_msg = "导航被取消";
       result->total_time = (this->now() - start_time).seconds();
@@ -317,7 +321,6 @@ void NavigationCoordinator::execute(
     double distance = std::sqrt(dx * dx + dy * dy);
 
     // 计算完成百分比
-    // 用初始距离作为100%基准
     double elapsed = (this->now() - start_time).seconds();
     double completion = std::min(100.0, std::max(0.0, (1.0 - distance / 10.0) * 100.0));
 
@@ -326,13 +329,13 @@ void NavigationCoordinator::execute(
     feedback->current_position.y = robot_y;
     feedback->current_position.z = 0.0;
     feedback->distance_remaining = distance;
-    feedback->estimated_time_remaining = distance / 0.3;  // 粗略估计
+    feedback->estimated_time_remaining = distance / avg_speed_;
     feedback->completion_percent = static_cast<float>(completion);
     goal_handle->publish_feedback(feedback);
 
     // 检查是否到达
     if (distance < goal_tolerance_xy_) {
-      release_path();  // 释放路径预约
+      releasePath();
       result->success = true;
       result->final_position_error = distance;
       result->total_time = elapsed;
@@ -346,13 +349,59 @@ void NavigationCoordinator::execute(
 
     // 超时检查（默认300秒）
     if (elapsed > 300.0) {
-      release_path();  // 释放路径预约
+      releasePath();
       result->success = false;
       result->error_msg = "导航超时（300秒）";
       result->total_time = elapsed;
       goal_handle->abort(result);
       RCLCPP_ERROR(this->get_logger(), "%s", result->error_msg.c_str());
       return;
+    }
+
+    // ----------------------------------------------------------
+    // 卡住检测与路径重规划
+    // ----------------------------------------------------------
+    // 检测逻辑：如果距离目标的距离在stuck_timeout_秒内没有明显减小（<stuck_distance_），
+    // 则认为AGV被障碍物挡住，触发路径重规划
+    if (distance < last_progress_distance - stuck_distance_) {
+      // 有进展，更新记录
+      last_progress_distance = distance;
+      last_progress_time = this->now();
+    } else {
+      // 检查是否卡住超时
+      double stuck_duration = (this->now() - last_progress_time).seconds();
+      if (stuck_duration > stuck_timeout_ && replan_count < max_replans_) {
+        replan_count++;
+        RCLCPP_WARN(this->get_logger(),
+          "AGV卡住%.1fs未接近目标（距离=%.2fm），触发路径重规划 %d/%d",
+          stuck_duration, distance, replan_count, max_replans_);
+
+        // 释放旧路径预约
+        releasePath();
+
+        // 重新规划路径
+        nav_msgs::msg::Path new_path = planPath();
+        if (new_path.poses.empty()) {
+          RCLCPP_ERROR(this->get_logger(), "重规划失败，继续使用原路径");
+          // 重新预约原路径
+          reservePath(current_path);
+        } else {
+          // 预约新路径
+          if (reservePath(new_path)) {
+            // 使用新路径
+            current_path = new_path;
+            path_pub_->publish(current_path);
+            RCLCPP_INFO(this->get_logger(), "重规划成功，新路径点数: %zu", current_path.poses.size());
+          } else {
+            RCLCPP_WARN(this->get_logger(), "新路径预约失败，继续使用原路径");
+            reservePath(current_path);
+          }
+        }
+
+        // 重置卡住检测
+        last_progress_distance = distance;
+        last_progress_time = this->now();
+      }
     }
 
     std::this_thread::sleep_for(feedback_period);
