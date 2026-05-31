@@ -1,0 +1,147 @@
+<?xml version="1.0"?>
+<!--
+  factory.world - 工厂仓库仿真世界
+  - 8m x 6m 工厂空间
+  - 6个货架（2列3行）
+  - 2个工作站
+  - 窄通道（1.2m宽，模拟叉车通道）
+  - 充电桩
+-->
+<sdf version="1.6">
+  <world name="factory">
+
+    <physics type="ode">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+      <real_time_update_rate>1000</real_time_update_rate>
+    </physics>
+
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <direction>-0.5 0.5 -1</direction>
+    </light>
+
+    <scene>
+      <ambient>0.4 0.4 0.4 1</ambient>
+      <background>0.7 0.7 0.7 1</background>
+    </scene>
+
+    <include><uri>model://ground_plane</uri></include>
+    <include><uri>model://sun</uri></include>
+
+    <!-- ==================== 墙壁 ==================== -->
+    <model name="wall_north"><static>true</static>
+      <pose>0 3.1 0.6 0 0 0</pose><link name="link">
+        <visual name="v"><geometry><box size="8.2 0.1 1.2</box></geometry><material><ambient>0.7 0.7 0.7 1</ambient></material></visual>
+        <collision name="c"><geometry><box size="8.2 0.1 1.2</box></geometry></collision>
+      </link>
+    </model>
+    <model name="wall_south"><static>true</static>
+      <pose>0 -3.1 0.6 0 0 0</pose><link name="link">
+        <visual name="v"><geometry><box size="8.2 0.1 1.2</box></geometry><material><ambient>0.7 0.7 0.7 1</ambient></material></visual>
+        <collision name="c"><geometry><box size="8.2 0.1 1.2</box></geometry></collision>
+      </link>
+    </model>
+    <model name="wall_west"><static>true</static>
+      <pose>-4.1 0 0.6 0 0 0</pose><link name="link">
+        <visual name="v"><geometry><box size="0.1 6.3 1.2</box></geometry><material><ambient>0.7 0.7 0.7 1</ambient></material></visual>
+        <collision name="c"><geometry><box size="0.1 6.3 1.2</box></geometry></collision>
+      </link>
+    </model>
+    <model name="wall_east"><static>true</static>
+      <pose>4.1 0 0.6 0 0 0</pose><link name="link">
+        <visual name="v"><geometry><box size="0.1 6.3 1.2</box></geometry><material><ambient>0.7 0.7 0.7 1</ambient></material></visual>
+        <collision name="c"><geometry><box size="0.1 6.3 1.2</box></geometry></collision>
+      </link>
+    </model>
+
+    <!-- ==================== 货架区域（左侧2列） ==================== -->
+    <!-- 货架A1 -->
+    <model name="shelf_a1"><static>true</static>
+      <pose>-2.5 1.5 0.3 0 0 0</pose><link name="link">
+        <visual name="v"><geometry><box size="1.0 0.5 0.6</box></geometry><material><ambient>0.5 0.3 0.1 1</ambient></material></visual>
+        <collision name="c"><geometry><box size="1.0 0.5 0.6</box></geometry></collision>
+      </link>
+    </model>
+    <!-- 货架A2 -->
+    <model name="shelf_a2"><static>true</static>
+      <pose>-2.5 -0.5 0.3 0 0 0</pose><link name="link">
+        <visual name="v"><geometry><box size="1.0 0.5 0.6</box></geometry><material><ambient>0.5 0.3 0.1 1</ambient></material></visual>
+        <collision name="c"><geometry><box size="1.0 0.5 0.6</box></geometry></collision>
+      </link>
+    </model>
+    <!-- 货架A3 -->
+    <model name="shelf_a3"><static>true</static>
+      <pose>-2.5 -2.5 0.3 0 0 0</pose><link name="link">
+        <visual name="v"><geometry><box size="1.0 0.5 0.6</box></geometry><material><ambient>0.5 0.3 0.1 1</ambient></material></visual>
+        <collision name="c"><geometry><box size="1.0 0.5 0.6</box></geometry></collision>
+      </link>
+    </model>
+
+    <!-- ==================== 货架区域（右侧2列） ==================== -->
+    <model name="shelf_b1"><static>true</static>
+      <pose>2.5 1.5 0.3 0 0 0</pose><link name="link">
+        <visual name="v"><geometry><box size="1.0 0.5 0.6</box></geometry><material><ambient>0.5 0.3 0.1 1</ambient></material></visual>
+        <collision name="c"><geometry><box size="1.0 0.5 0.6</box></geometry></collision>
+      </link>
+    </model>
+    <model name="shelf_b2"><static>true</static>
+      <pose>2.5 -0.5 0.3 0 0 0</pose><link name="link">
+        <visual name="v"><geometry><box size="1.0 0.5 0.6</box></geometry><material><ambient>0.5 0.3 0.1 1</ambient></material></visual>
+        <collision name="c"><geometry><box size="1.0 0.5 0.6</box></geometry></collision>
+      </link>
+    </model>
+    <model name="shelf_b3"><static>true</static>
+      <pose>2.5 -2.5 0.3 0 0 0</pose><link name="link">
+        <visual name="v"><geometry><box size="1.0 0.5 0.6</box></geometry><material><ambient>0.5 0.3 0.1 1</ambient></material></visual>
+        <collision name="c"><geometry><box size="1.0 0.5 0.6</box></geometry></collision>
+      </link>
+    </model>
+
+    <!-- ==================== 中央堆垛区 ==================== -->
+    <model name="pallet_1"><static>true</static>
+      <pose>0 0.8 0.1 0 0 0</pose><link name="link">
+        <visual name="v"><geometry><box size="0.6 0.4 0.2</box></geometry><material><ambient>0.4 0.25 0.1 1</ambient></material></visual>
+        <collision name="c"><geometry><box size="0.6 0.4 0.2</box></geometry></collision>
+      </link>
+    </model>
+    <model name="pallet_2"><static>true</static>
+      <pose>0 -1.0 0.1 0 0 0.3</pose><link name="link">
+        <visual name="v"><geometry><box size="0.5 0.35 0.2</box></geometry><material><ambient>0.4 0.25 0.1 1</ambient></material></visual>
+        <collision name="c"><geometry><box size="0.5 0.35 0.2</box></geometry></collision>
+      </link>
+    </model>
+
+    <!-- ==================== 工作站 ==================== -->
+    <model name="workstation_1"><static>true</static>
+      <pose>-3.5 2.5 0.25 0 0 0</pose><link name="link">
+        <visual name="v"><geometry><box size="0.4 0.4 0.5</box></geometry><material><ambient>0.2 0.6 0.8 1</ambient></material></visual>
+        <collision name="c"><geometry><box size="0.4 0.4 0.5</box></geometry></collision>
+      </link>
+    </model>
+    <model name="workstation_2"><static>true</static>
+      <pose>3.5 2.5 0.25 0 0 0</pose><link name="link">
+        <visual name="v"><geometry><box size="0.4 0.4 0.5</box></geometry><material><ambient>0.2 0.6 0.8 1</ambient></material></visual>
+        <collision name="c"><geometry><box size="0.4 0.4 0.5</box></geometry></collision>
+      </link>
+    </model>
+
+    <!-- ==================== 充电桩 ==================== -->
+    <model name="charger_1"><static>true</static>
+      <pose>3.5 -2.5 0.1 0 0 0</pose><link name="link">
+        <visual name="v"><geometry><box size="0.3 0.3 0.2</box></geometry><material><ambient>0.2 0.8 0.2 1</ambient></material></visual>
+        <collision name="c"><geometry><box size="0.3 0.3 0.2</box></geometry></collision>
+      </link>
+    </model>
+    <model name="charger_2"><static>true</static>
+      <pose>-3.5 -2.5 0.1 0 0 0</pose><link name="link">
+        <visual name="v"><geometry><box size="0.3 0.3 0.2</box></geometry><material><ambient>0.2 0.8 0.2 1</ambient></material></visual>
+        <collision name="c"><geometry><box size="0.3 0.3 0.2</box></geometry></collision>
+      </link>
+    </model>
+
+  </world>
+</sdf>
