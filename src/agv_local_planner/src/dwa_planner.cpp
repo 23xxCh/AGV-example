@@ -42,6 +42,7 @@ DWAPlanner::DWAPlanner(const rclcpp::NodeOptions & options)
   // ----------------------------------------------------------
   DWAParams params = loadParams();
   dwa_ = std::make_unique<DWASearch>(params);
+  goal_tolerance_xy_ = params.goal_tolerance_xy;
 
   RCLCPP_INFO(this->get_logger(), "DWA规划器初始化: max_v=%.2f, max_w=%.2f, sim_time=%.2f",
     params.max_vel_x, params.max_vel_theta, params.sim_time);
@@ -255,12 +256,19 @@ void DWAPlanner::controlTimerCallback()
     std::pow(final_goal.x - robot_pose.x, 2) +
     std::pow(final_goal.y - robot_pose.y, 2));
 
-  if (dist_to_final < 0.3) {
+  if (dist_to_final < goal_tolerance_xy_) {
     // 到达最终目标，停止
     geometry_msgs::msg::Twist stop_cmd;
     cmd_vel_pub_->publish(stop_cmd);
     RCLCPP_INFO(this->get_logger(), "DWA: 已到达目标！停止。");
     return;
+  }
+
+  // 接近目标时减速，防止过冲振荡
+  double speed_scale = 1.0;
+  if (dist_to_final < goal_tolerance_xy_ * 3.0) {
+    speed_scale = dist_to_final / (goal_tolerance_xy_ * 3.0);
+    speed_scale = std::max(0.3, speed_scale);  // 最低保持30%速度
   }
 
   // ----------------------------------------------------------
@@ -341,11 +349,11 @@ void DWAPlanner::controlTimerCallback()
     costmap_copy.info.origin.position.y);
 
   // ----------------------------------------------------------
-  // 步骤5：发布速度指令
+  // 步骤5：发布速度指令（接近目标时减速）
   // ----------------------------------------------------------
   geometry_msgs::msg::Twist cmd_vel;
-  cmd_vel.linear.x = best_vel.v;      // 前进速度（m/s）
-  cmd_vel.angular.z = best_vel.omega;  // 转向速度（rad/s）
+  cmd_vel.linear.x = best_vel.v * speed_scale;      // 前进速度（m/s）
+  cmd_vel.angular.z = best_vel.omega * speed_scale;  // 转向速度（rad/s）
   cmd_vel_pub_->publish(cmd_vel);
 
   // 记录上次发布的速度，用于下次DWA计算
