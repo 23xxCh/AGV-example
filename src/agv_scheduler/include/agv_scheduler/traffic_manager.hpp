@@ -52,6 +52,13 @@ struct Reservation {
   double end_time;    // 离开该格子的时间
 };
 
+// 等待记录（用于死锁检测）
+struct WaitRecord {
+  std::string waiting_agv;    // 等待中的AGV
+  std::string blocking_agv;   // 被阻塞的AGV
+  double wait_start_time;     // 开始等待的时间
+};
+
 class TrafficManager : public rclcpp::Node
 {
 public:
@@ -87,6 +94,17 @@ private:
   std::unordered_map<CellKey, std::vector<Reservation>, CellKeyHash> reservation_table_;
   std::mutex table_mutex_;
 
+  // 等待图：waiting_agv -> blocking_agv（用于死锁检测）
+  std::unordered_map<std::string, std::string> wait_graph_;
+  std::unordered_map<std::string, double> wait_start_times_;
+  std::mutex wait_mutex_;
+
+  // 死锁检测
+  void detectDeadlock();
+  bool hasCycle(std::string & victim_agv);
+  void forceRelease(const std::string & agv_id);
+  double deadlock_timeout_;  // 死锁超时（秒）
+
   // 参数
   double resolution_;       // 地图分辨率
   double origin_x_;         // 地图原点X
@@ -100,6 +118,9 @@ private:
 
   // 定时器：清理过期预约
   rclcpp::TimerBase::SharedPtr cleanup_timer_;
+
+  // 定时器：死锁检测
+  rclcpp::TimerBase::SharedPtr deadlock_timer_;
 };
 
 }  // namespace agv_scheduler
