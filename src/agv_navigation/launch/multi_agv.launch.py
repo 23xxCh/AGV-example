@@ -59,7 +59,7 @@ def create_agv_group(agv_id: str, initial_x: float, initial_y: float,
         # 使用绝对路径调用全局规划服务（不在命名空间内）
         'planner_service': '/plan_path',
         'feedback_rate': 5.0,
-        'goal_tolerance_xy': 0.3,
+        'goal_tolerance_xy': 0.15,
         'goal_tolerance_yaw': 0.2,
         'base_frame': base_frame,
         'map_frame': 'map',
@@ -105,6 +105,8 @@ def create_agv_group(agv_id: str, initial_x: float, initial_y: float,
         remappings=[
             # 将命名空间内的 map 话题映射到全局 /map
             ('map', '/map'),
+            # 动态障碍物代价地图映射到全局
+            ('dynamic_costmap', '/dynamic_costmap'),
         ],
         output='screen',
     )
@@ -194,6 +196,23 @@ def generate_launch_description():
         output='screen'
     )
 
+    # 动态障碍物管理器
+    obstacle_manager_node = Node(
+        package='agv_simulator',
+        executable='obstacle_manager_node',
+        name='obstacle_manager',
+        parameters=[{
+            'num_pedestrians': 3,
+            'num_forklifts': 2,
+            'num_carts': 1,
+            'update_rate': 10.0,
+            'map_width': 3.5,
+            'map_height': 2.5,
+            'publish_markers': True,
+        }],
+        output='screen'
+    )
+
     # ----------------------------------------------------------
     # AGV 1（命名空间: agv_001）
     # ----------------------------------------------------------
@@ -247,6 +266,7 @@ def generate_launch_description():
         global_planner_node,
         traffic_manager_node,
         task_scheduler_node,
+        obstacle_manager_node,
         agv1_group,
         agv2_group,
         rviz_node,

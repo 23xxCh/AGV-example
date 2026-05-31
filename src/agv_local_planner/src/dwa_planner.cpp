@@ -20,6 +20,7 @@ namespace agv_local_planner
 DWAPlanner::DWAPlanner(const rclcpp::NodeOptions & options)
 : Node("dwa_planner", options),
   costmap_received_(false),
+  dynamic_costmap_received_(false),
   path_received_(false),
   local_goal_index_(0)
 {
@@ -68,6 +69,11 @@ DWAPlanner::DWAPlanner(const rclcpp::NodeOptions & options)
   path_sub_ = this->create_subscription<nav_msgs::msg::Path>(
     path_topic, rclcpp::QoS(10).reliable(),
     std::bind(&DWAPlanner::pathCallback, this, std::placeholders::_1));
+
+  // 动态障碍物代价地图订阅
+  dynamic_costmap_sub_ = this->create_subscription<nav_msgs::msg::OccupancyGrid>(
+    "dynamic_costmap", rclcpp::QoS(1).reliable().transient_local(),
+    std::bind(&DWAPlanner::dynamicCostmapCallback, this, std::placeholders::_1));
 
   // ----------------------------------------------------------
   // 创建发布器
@@ -165,6 +171,16 @@ void DWAPlanner::pathCallback(const nav_msgs::msg::Path::SharedPtr msg)
 
   RCLCPP_INFO_ONCE(this->get_logger(),
     "DWA收到全局路径: %zu个路径点", msg->poses.size());
+}
+
+// ============================================================
+// dynamicCostmapCallback - 动态障碍物代价地图回调
+// ============================================================
+void DWAPlanner::dynamicCostmapCallback(const nav_msgs::msg::OccupancyGrid::SharedPtr msg)
+{
+  std::lock_guard<std::mutex> lock(dynamic_costmap_mutex_);
+  dynamic_costmap_ = *msg;
+  dynamic_costmap_received_ = true;
 }
 
 // ============================================================
@@ -268,6 +284,51 @@ void DWAPlanner::controlTimerCallback()
       costmap_data[i] = 254;  // 障碍 → 外切
     } else {
       costmap_data[i] = static_cast<uint8_t>((val * 253) / 99);
+    }
+  }
+
+  // 合并动态障碍物代价地图
+  // 动态障碍物地图可能与静态地图有不同的分辨率和尺寸
+  // 需要将动态障碍物的世界坐标转换为静态地图的格子坐标
+  {
+    std::lock_guard<std::mutex> lock(dynamic_costmap_mutex_);
+    if (dynamic_costmap_received_) {
+      double dyn_res = dynamic_costmap_.info.resolution;
+      double dyn_ox = dynamic_costmap_.info.origin.position.x;
+      double dyn_oy = dynamic_costmap_.info.origin.position.y;
+      unsigned int dyn_w = dynamic_costmap_.info.width;
+      unsigned int dyn_h = dynamic_costmap_.info.height;
+
+      double stat_res = costmap_copy.info.resolution;
+      double stat_ox = costmap_copy.info.origin.position.x;
+      double stat_oy = costmap_copy.info.origin.position.y;
+      unsigned int stat_w = costmap_copy.info.width;
+      unsigned int stat_h = costmap_copy.info.height;
+
+      // 遍历动态障碍物地图的每个格子
+      for (unsigned int dy = 0; dy < dyn_h; ++dy) {
+        for (unsigned int dx = 0; dx < dyn_w; ++dx) {
+          int idx = dy * dyn_w + dx;
+          if (dynamic_costmap_.data[idx] <= 0) continue;
+
+          // 转换为世界坐标
+          double wx = dyn_ox + (dx + 0.5) * dyn_res;
+          double wy = dyn_oy + (dy + 0.5) * dyn_res;
+
+          // 转换为静态地图格子坐标
+          int sx = static_cast<int>((wx - stat_ox) / stat_res);
+          int sy = static_cast<int>((wy - stat_oy) / stat_res);
+
+          if (sx >= 0 && sy >= 0 &&
+              static_cast<unsigned int>(sx) < stat_w &&
+              static_cast<unsigned int>(sy) < stat_h) {
+            size_t stat_idx = static_cast<size_t>(sy) * stat_w + sx;
+            uint8_t dynamic_cost = static_cast<uint8_t>(
+              (dynamic_costmap_.data[idx] * 253) / 99);
+            costmap_data[stat_idx] = std::max(costmap_data[stat_idx], dynamic_cost);
+          }
+        }
+      }
     }
   }
 

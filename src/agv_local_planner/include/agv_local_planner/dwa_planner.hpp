@@ -69,6 +69,12 @@ private:
   void pathCallback(const nav_msgs::msg::Path::SharedPtr msg);
 
   /**
+   * 动态障碍物代价地图回调
+   * 收到动态障碍物的代价地图后缓存，在控制循环中与静态地图合并
+   */
+  void dynamicCostmapCallback(const nav_msgs::msg::OccupancyGrid::SharedPtr msg);
+
+  /**
    * 控制定时器回调
    * 以固定频率（如10Hz）执行DWA计算，发布速度指令
    *
@@ -118,6 +124,11 @@ private:
   bool costmap_received_;
   mutable std::mutex costmap_mutex_;  // mutable允许在const方法中加锁
 
+  // 动态障碍物代价地图缓存
+  nav_msgs::msg::OccupancyGrid dynamic_costmap_;
+  bool dynamic_costmap_received_;
+  mutable std::mutex dynamic_costmap_mutex_;
+
   // 全局路径缓存
   nav_msgs::msg::Path global_path_;
   bool path_received_;
@@ -133,6 +144,7 @@ private:
   // 订阅器
   rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr costmap_sub_;
   rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr path_sub_;
+  rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr dynamic_costmap_sub_;
 
   // 发布器：速度指令
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_pub_;

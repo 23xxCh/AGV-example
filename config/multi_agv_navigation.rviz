@@ -188,6 +188,22 @@ Visualization Manager:
         Value: /agv_002/dwa_markers
       Value: true
 
+    # ============================================================
+    # 动态障碍物
+    # ============================================================
+
+    # ---- 动态障碍物Marker ----
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: Dynamic Obstacles
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /dynamic_obstacles
+      Value: true
+
     # ---- TF坐标系显示 ----
     - Class: rviz_default_plugins/TF
       Enabled: true

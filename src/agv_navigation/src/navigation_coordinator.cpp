@@ -78,8 +78,8 @@ NavigationCoordinator::NavigationCoordinator(const rclcpp::NodeOptions & options
   // ----------------------------------------------------------
   // 创建交通管理器服务客户端
   // ----------------------------------------------------------
-  reserve_path_client_ = this->create_client<agv_interfaces::srv::ReservePath>("reserve_path");
-  release_path_client_ = this->create_client<agv_interfaces::srv::ReservePath>("release_path");
+  reserve_path_client_ = this->create_client<agv_interfaces::srv::ReservePath>("/reserve_path");
+  release_path_client_ = this->create_client<agv_interfaces::srv::ReservePath>("/release_path");
 
   // ----------------------------------------------------------
   // 创建路径发布器
