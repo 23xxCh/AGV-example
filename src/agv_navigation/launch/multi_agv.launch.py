@@ -63,6 +63,10 @@ def create_agv_group(agv_id: str, initial_x: float, initial_y: float,
         'goal_tolerance_yaw': 0.2,
         'base_frame': base_frame,
         'map_frame': 'map',
+        'agv_id': agv_id,
+        'avg_speed': 0.3,
+        'max_reservation_retries': 10,
+        'reservation_retry_interval': 2.0,
     }
 
     # ----------------------------------------------------------

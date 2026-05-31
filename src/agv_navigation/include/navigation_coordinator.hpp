@@ -48,6 +48,7 @@
 
 #include "agv_interfaces/action/navigate.hpp"
 #include "agv_interfaces/srv/path_plan.hpp"
+#include "agv_interfaces/srv/reserve_path.hpp"
 
 namespace agv_navigation
 {
@@ -79,6 +80,10 @@ private:
   // 全局路径规划服务客户端
   rclcpp::Client<agv_interfaces::srv::PathPlan>::SharedPtr path_plan_client_;
 
+  // 交通管理器服务客户端
+  rclcpp::Client<agv_interfaces::srv::ReservePath>::SharedPtr reserve_path_client_;
+  rclcpp::Client<agv_interfaces::srv::ReservePath>::SharedPtr release_path_client_;
+
   // 路径发布器（发送给DWA）
   rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr path_pub_;
 
@@ -93,6 +98,10 @@ private:
   double goal_tolerance_yaw_;
   std::string base_frame_;
   std::string map_frame_;
+  std::string agv_id_;
+  double avg_speed_;         // 平均速度（用于预约计算）
+  int max_reservation_retries_;  // 最大预约重试次数
+  double reservation_retry_interval_;  // 预约重试间隔
 };
 
 }  // namespace agv_navigation
