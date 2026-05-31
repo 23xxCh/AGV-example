@@ -46,7 +46,33 @@ ament_target_dependencies(cooperative_transport_node
   tf2_ros agv_interfaces
 )
 
-install(TARGETS navigation_coordinator_lib navigation_coordinator_node cooperative_transport_node
+# 数据记录器节点
+add_executable(data_recorder_node
+  src/data_recorder.cpp
+  src/data_recorder_node.cpp
+)
+target_include_directories(data_recorder_node PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+ament_target_dependencies(data_recorder_node
+  rclcpp geometry_msgs nav_msgs agv_interfaces
+)
+
+# 数据回放器节点
+add_executable(data_replayer_node
+  src/data_replayer.cpp
+  src/data_replayer_node.cpp
+)
+target_include_directories(data_replayer_node PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+ament_target_dependencies(data_replayer_node
+  rclcpp geometry_msgs agv_interfaces
+)
+
+install(TARGETS navigation_coordinator_lib navigation_coordinator_node cooperative_transport_node data_recorder_node data_replayer_node
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION lib/${PROJECT_NAME}

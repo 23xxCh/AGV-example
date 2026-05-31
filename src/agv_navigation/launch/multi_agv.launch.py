@@ -230,6 +230,23 @@ def generate_launch_description():
     agv2_group = create_agv_group('agv_002', initial_x=0.15, initial_y=0.55)
 
     # ----------------------------------------------------------
+    # 数据记录器
+    # ----------------------------------------------------------
+    data_recorder_node = Node(
+        package='agv_navigation',
+        executable='data_recorder_node',
+        name='data_recorder',
+        parameters=[{
+            'log_dir': os.path.join(os.path.expanduser('~'), 'AGV', 'logs'),
+            'agv_ids': ['agv_001', 'agv_002'],
+            'record_status': True,
+            'record_cmd_vel': True,
+            'record_path': True,
+        }],
+        output='screen'
+    )
+
+    # ----------------------------------------------------------
     # RViz2可视化
     # ----------------------------------------------------------
     rviz_config = os.path.join(
@@ -273,6 +290,7 @@ def generate_launch_description():
         traffic_manager_node,
         task_scheduler_node,
         obstacle_manager_node,
+        data_recorder_node,
         agv1_group,
         agv2_group,
         rviz_node,
