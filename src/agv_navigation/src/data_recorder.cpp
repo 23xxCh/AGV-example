@@ -19,6 +19,24 @@
 namespace agv_navigation
 {
 
+// 转义JSON字符串中的特殊字符（双引号、反斜杠、换行符等）
+static std::string escapeJsonString(const std::string & input)
+{
+  std::string result;
+  result.reserve(input.size() + 8);
+  for (char c : input) {
+    switch (c) {
+      case '"':  result += "\\\""; break;
+      case '\\': result += "\\\\"; break;
+      case '\n': result += "\\n";  break;
+      case '\r': result += "\\r";  break;
+      case '\t': result += "\\t";  break;
+      default:   result += c;      break;
+    }
+  }
+  return result;
+}
+
 DataRecorder::DataRecorder(const rclcpp::NodeOptions & options)
 : Node("data_recorder", options),
   record_count_(0)
@@ -36,9 +54,14 @@ DataRecorder::DataRecorder(const rclcpp::NodeOptions & options)
   record_cmd_vel_ = this->get_parameter("record_cmd_vel").as_bool();
   record_path_ = this->get_parameter("record_path").as_bool();
 
-  // 展开 ~ 路径
+  // 展开 ~ 路径（HOME环境变量可能为空，需要检查）
   if (log_dir_.front() == '~') {
-    log_dir_ = std::string(std::getenv("HOME")) + log_dir_.substr(1);
+    const char * home = std::getenv("HOME");
+    if (home != nullptr) {
+      log_dir_ = std::string(home) + log_dir_.substr(1);
+    } else {
+      RCLCPP_WARN(this->get_logger(), "HOME环境变量未设置，使用原始路径: %s", log_dir_.c_str());
+    }
   }
 
   // 创建日志目录
@@ -111,7 +134,7 @@ void DataRecorder::agvStatusCallback(
        << ",\"w\":" << msg->angular_velocity
        << ",\"battery\":" << msg->battery_level
        << ",\"status\":" << static_cast<int>(msg->status)
-       << ",\"task\":\"" << msg->current_task_id << "\"}";
+       << ",\"task\":\"" << escapeJsonString(msg->current_task_id) << "\"}";
 
   double ts = msg->header.stamp.sec + msg->header.stamp.nanosec * 1e-9;
   writeRecord("status", agv_id, data.str(), ts);

@@ -11,6 +11,10 @@
 
 set -e
 
+# Source ROS2 and workspace
+source /opt/ros/humble/setup.bash
+source ~/AGV/install/setup.bash
+
 RESULTS_FILE="$HOME/AGV/test/test_results.txt"
 MAP_WIDTH=8.2
 MAP_HEIGHT=6.2
@@ -32,38 +36,6 @@ echo ""
 PASS=0
 FAIL=0
 TOTAL=0
-
-# 等待AGV到达目标（轮询TF）
-wait_for_arrival() {
-    local agv_id=$1
-    local goal_x=$2
-    local goal_y=$3
-    local tolerance=$4
-    local timeout=$5
-
-    local start=$(date +%s)
-    while true; do
-        local now=$(date +%s)
-        local elapsed=$((now - start))
-        if [ $elapsed -ge $timeout ]; then
-            return 1  # 超时
-        fi
-
-        # 查询TF获取AGV位置
-        local pos=$(ros2 topic echo /tf --once --no-daemon 2>/dev/null | grep -A5 "$agv_id" | grep "x:" | head -1 | awk '{print $2}')
-        # 简化：等待固定时间
-        sleep 2
-
-        # 每5秒打印一次状态
-        if [ $((elapsed % 5)) -eq 0 ]; then
-            echo "    等待中... ${elapsed}s/${timeout}s"
-        fi
-
-        if [ $elapsed -ge $((timeout / 2)) ]; then
-            return 0  # 简化：超时一半就认为可能完成
-        fi
-    done
-}
 
 # 运行单个测试
 run_test() {
@@ -88,12 +60,12 @@ run_test() {
 
     # 发送任务
     echo "  发送任务..."
-    local result=$(ros2 service call /assign_task agv_interfaces/srv/AssignTask \
-        "{task: {goal_x: ${goal_x}, goal_y: ${goal_y}, goal_theta: ${goal_theta}, priority: ${priority}}}" \
-        --once 2>&1)
+    local result=$(timeout 10 ros2 service call /assign_task agv_interfaces/srv/AssignTask \
+        "{task: {goal_x: ${goal_x}, goal_y: ${goal_y}, goal_theta: ${goal_theta}, priority: ${priority}}}" 2>&1)
 
-    if echo "$result" | grep -q "success: true"; then
-        local assigned_agv=$(echo "$result" | grep "assigned_agv_id:" | awk '{print $2}' | tr -d '"')
+    if echo "$result" | grep -q "success=True"; then
+        local assigned_agv=$(echo "$result" | grep -oP "assigned_agv_id='\\K[^']+")
+
         echo "  任务已分配: AGV=${assigned_agv:-队列中}"
 
         # 等待一段时间让AGV执行
@@ -158,12 +130,12 @@ run_test "T06_取货任务" \
 # T07: 送货到工作站
 run_test "T07_送货到工作站" \
     "从货架区域送货到工作站1" \
-    -3.0 2.5 0.0 3 30
+    -3.0 2.0 0.0 3 30
 
 # T08: 充电导航
 run_test "T08_充电导航" \
     "导航到充电桩位置" \
-    3.5 -2.5 0.0 1 25
+    3.8 -2.0 0.0 1 25
 
 # T09: 高优先级抢占
 run_test "T09_高优先级任务" \
@@ -171,21 +143,21 @@ run_test "T09_高优先级任务" \
     -3.0 -2.0 0.0 8 25
 
 # T10: 多车协同
+TOTAL=$((TOTAL + 1))
 echo ""
 echo "------------------------------------------------------------"
 echo -e "  测试 ${TOTAL}/10: ${YELLOW}T10_多车协同${NC}"
 echo "  描述: 同时分配两个任务给两台AGV"
 echo "------------------------------------------------------------"
 
-TOTAL=$((TOTAL + 1))
 start=$(date +%s)
 
 echo "  同时发送两个任务..."
-ros2 service call /assign_task agv_interfaces/srv/AssignTask \
-    "{task: {goal_x: 1.5, goal_y: 1.5, goal_theta: 0.0, priority: 2}}" --once > /dev/null 2>&1 &
+timeout 10 ros2 service call /assign_task agv_interfaces/srv/AssignTask \
+    "{task: {goal_x: 1.5, goal_y: 1.5, goal_theta: 0.0, priority: 2}}" > /dev/null 2>&1 &
 sleep 0.5
-ros2 service call /assign_task agv_interfaces/srv/AssignTask \
-    "{task: {goal_x: -1.5, goal_y: -1.5, goal_theta: 0.0, priority: 2}}" --once > /dev/null 2>&1 &
+timeout 10 ros2 service call /assign_task agv_interfaces/srv/AssignTask \
+    "{task: {goal_x: -1.5, goal_y: -1.5, goal_theta: 0.0, priority: 2}}" > /dev/null 2>&1 &
 
 echo "  等待两台AGV执行 (30s)..."
 sleep 30

@@ -273,7 +273,8 @@ private:
   bool isTraversable(
     const GridCell & cell,
     const std::vector<uint8_t> & costmap,
-    unsigned int width) const;
+    unsigned int width,
+    unsigned int height) const;
 
   /**
    * 获取格子的8个（或4个）邻居

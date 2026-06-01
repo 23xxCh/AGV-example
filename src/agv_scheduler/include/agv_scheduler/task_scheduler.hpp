@@ -98,8 +98,8 @@ private:
   // 找到可被抢占的AGV（正在执行低优先级任务）
   std::string findPreemptableAGV(double goal_x, double goal_y, uint8_t min_priority);
 
-  // 发送导航目标给AGV
-  void sendGoalToAGV(const std::string & agv_id, const Task & task);
+  // 发送导航目标给AGV（返回是否成功发送）
+  bool sendGoalToAGV(const std::string & agv_id, const Task & task);
 
   // 取消AGV当前任务
   void cancelAGVTask(const std::string & agv_id);
@@ -131,6 +131,10 @@ private:
 
   // Action客户端（每个AGV一个）
   std::map<std::string, rclcpp_action::Client<NavigateAction>::SharedPtr> action_clients_;
+
+  // Goal句柄（用于取消正在执行的任务）
+  std::map<std::string, std::shared_ptr<GoalHandleNavigate>> goal_handles_;
+  std::mutex goal_handles_mutex_;
 
   // AGV状态订阅器
   std::vector<rclcpp::Subscription<agv_interfaces::msg::AGVStatus>::SharedPtr> status_subs_;

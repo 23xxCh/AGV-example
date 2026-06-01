@@ -1,0 +1,70 @@
+[
+  {
+    "name": "T01_直线导航",
+    "description": "从起点直线前进到货架A1前方，验证基本导航能力",
+    "passed": true,
+    "duration": 28.2,
+    "error": ""
+  },
+  {
+    "name": "T02_转弯导航",
+    "description": "从起点导航到右侧货架B3，需要转弯和横向移动",
+    "passed": true,
+    "duration": 12.3,
+    "error": ""
+  },
+  {
+    "name": "T03_对角穿越",
+    "description": "从左下到右上对角穿越仓库，经过中央堆垛区",
+    "passed": true,
+    "duration": 21.2,
+    "error": ""
+  },
+  {
+    "name": "T04_货架间穿行",
+    "description": "在两列货架之间横向穿行，通道宽约1.2m",
+    "passed": true,
+    "duration": 22.2,
+    "error": ""
+  },
+  {
+    "name": "T05_绕行堆垛",
+    "description": "绕过中央堆垛区到达对面，验证绕行能力",
+    "passed": true,
+    "duration": 13.1,
+    "error": ""
+  },
+  {
+    "name": "T06_取货任务",
+    "description": "从起点导航到货架A2取货点（模拟取货流程）",
+    "passed": true,
+    "duration": 9.3,
+    "error": ""
+  },
+  {
+    "name": "T07_送货到工作站",
+    "description": "从货架区域送货到工作站1（模拟送货流程）",
+    "passed": true,
+    "duration": 14.1,
+    "error": ""
+  },
+  {
+    "name": "T08_充电导航",
+    "description": "导航到充电桩位置（模拟低电量回充）",
+    "passed": true,
+    "duration": 19.3,
+    "error": ""
+  },
+  {
+    "name": "T09_多车同向",
+    "passed": true,
+    "duration": 29.3,
+    "error": ""
+  },
+  {
+    "name": "T10_多车对向",
+    "passed": true,
+    "duration": 29.3,
+    "error": ""
+  }
+]

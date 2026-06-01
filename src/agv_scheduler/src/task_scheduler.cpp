@@ -139,16 +139,21 @@ void TaskScheduler::handleAssignTask(
   if (!agv_id.empty()) {
     // 找到空闲AGV，立即分配
     task.assigned_agv_id = agv_id;
-    sendGoalToAGV(agv_id, task);
+    if (sendGoalToAGV(agv_id, task)) {
+      std::lock_guard<std::mutex> lock(tasks_mutex_);
+      active_tasks_.push_back(task);
 
-    std::lock_guard<std::mutex> lock(tasks_mutex_);
-    active_tasks_.push_back(task);
-
-    response->success = true;
-    response->assigned_agv_id = agv_id;
-    RCLCPP_INFO(this->get_logger(),
-      "任务 %s 已分配给 %s", task.task_id.c_str(), agv_id.c_str());
-  } else if (enable_preemption_ && task.priority >= preemption_threshold_ + 3) {
+      response->success = true;
+      response->assigned_agv_id = agv_id;
+      RCLCPP_INFO(this->get_logger(),
+        "任务 %s 已分配给 %s", task.task_id.c_str(), agv_id.c_str());
+    } else {
+      response->success = false;
+      response->error_msg = "发送目标失败: " + agv_id;
+      RCLCPP_ERROR(this->get_logger(),
+        "任务 %s 发送失败", task.task_id.c_str());
+    }
+  } else if (enable_preemption_ && task.priority > preemption_threshold_) {
     // 尝试抢占低优先级任务
     bool preempted = tryPreempt(task);
     if (preempted) {
@@ -227,12 +232,17 @@ void TaskScheduler::tryAssignTasks()
     if (!agv_id.empty()) {
       // 找到空闲AGV，分配任务
       task.assigned_agv_id = agv_id;
-      sendGoalToAGV(agv_id, task);
-      active_tasks_.push_back(task);
-
-      RCLCPP_INFO(this->get_logger(),
-        "任务 %s 已分配给 %s (有效优先级=%.1f)",
-        task.task_id.c_str(), agv_id.c_str(), task.effective_priority);
+      if (sendGoalToAGV(agv_id, task)) {
+        active_tasks_.push_back(task);
+        RCLCPP_INFO(this->get_logger(),
+          "任务 %s 已分配给 %s (有效优先级=%.1f)",
+          task.task_id.c_str(), agv_id.c_str(), task.effective_priority);
+      } else {
+        // 发送失败，放回队列重试
+        unassigned.push_back(task);
+        RCLCPP_WARN(this->get_logger(),
+          "任务 %s 发送失败，放回队列", task.task_id.c_str());
+      }
     } else {
       unassigned.push_back(task);
     }
@@ -287,8 +297,14 @@ bool TaskScheduler::tryPreempt(const Task & task)
     // 分配新任务
     Task new_task = task;
     new_task.assigned_agv_id = agv_id;
-    sendGoalToAGV(agv_id, new_task);
-    active_tasks_.push_back(new_task);
+    if (sendGoalToAGV(agv_id, new_task)) {
+      active_tasks_.push_back(new_task);
+    } else {
+      // 发送失败，将被抢占的任务恢复
+      preempted_task.assigned_agv_id = agv_id;
+      pending_queue_.push(preempted_task);
+      RCLCPP_ERROR(this->get_logger(), "抢占后发送新任务失败");
+    }
 
     return true;
   }
@@ -323,14 +339,14 @@ std::string TaskScheduler::findNearestIdleAGV(double goal_x, double goal_y)
 }
 
 // ============================================================
-// sendGoalToAGV - 发送导航目标给AGV
+// sendGoalToAGV - 发送导航目标给AGV（返回是否成功发送）
 // ============================================================
-void TaskScheduler::sendGoalToAGV(const std::string & agv_id, const Task & task)
+bool TaskScheduler::sendGoalToAGV(const std::string & agv_id, const Task & task)
 {
   auto client_it = action_clients_.find(agv_id);
   if (client_it == action_clients_.end()) {
     RCLCPP_ERROR(this->get_logger(), "找不到AGV的Action客户端: %s", agv_id.c_str());
-    return;
+    return false;
   }
 
   auto client = client_it->second;
@@ -339,7 +355,7 @@ void TaskScheduler::sendGoalToAGV(const std::string & agv_id, const Task & task)
   if (!client->wait_for_action_server(std::chrono::seconds(5))) {
     RCLCPP_WARN(this->get_logger(),
       "AGV %s 的Action服务器不可用", agv_id.c_str());
-    return;
+    return false;
   }
 
   // 构建目标
@@ -353,23 +369,41 @@ void TaskScheduler::sendGoalToAGV(const std::string & agv_id, const Task & task)
 
   // 发送目标（异步）
   auto send_goal_options = rclcpp_action::Client<NavigateAction>::SendGoalOptions();
+
+  send_goal_options.goal_response_callback =
+    [this, agv_id](const GoalHandleNavigate::SharedPtr & goal_handle) {
+      if (goal_handle) {
+        std::lock_guard<std::mutex> lock(goal_handles_mutex_);
+        goal_handles_[agv_id] = goal_handle;
+        RCLCPP_DEBUG(this->get_logger(), "AGV %s 目标已接受", agv_id.c_str());
+      } else {
+        RCLCPP_WARN(this->get_logger(), "AGV %s 目标被拒绝", agv_id.c_str());
+      }
+    };
+
   send_goal_options.result_callback =
     [this, agv_id, task_id = task.task_id](const GoalHandleNavigate::WrappedResult & result) {
-      std::lock_guard<std::mutex> lock(tasks_mutex_);
-      std::lock_guard<std::mutex> lock2(agv_mutex_);
+      {
+        std::lock_guard<std::mutex> lock(goal_handles_mutex_);
+        goal_handles_.erase(agv_id);
+      }
+      {
+        std::lock_guard<std::mutex> lock(tasks_mutex_);
+        std::lock_guard<std::mutex> lock2(agv_mutex_);
 
-      // 从活跃任务中移除
-      active_tasks_.erase(
-        std::remove_if(active_tasks_.begin(), active_tasks_.end(),
-          [&](const Task & t) { return t.task_id == task_id; }),
-        active_tasks_.end());
+        // 从活跃任务中移除
+        active_tasks_.erase(
+          std::remove_if(active_tasks_.begin(), active_tasks_.end(),
+            [&](const Task & t) { return t.task_id == task_id; }),
+          active_tasks_.end());
 
-      // 标记AGV为空闲
-      for (auto & info : agv_infos_) {
-        if (info.agv_id == agv_id) {
-          info.status = 0;
-          info.current_task_id = "";
-          break;
+        // 标记AGV为空闲
+        for (auto & info : agv_infos_) {
+          if (info.agv_id == agv_id) {
+            info.status = 0;
+            info.current_task_id = "";
+            break;
+          }
         }
       }
 
@@ -397,6 +431,8 @@ void TaskScheduler::sendGoalToAGV(const std::string & agv_id, const Task & task)
       }
     }
   }
+
+  return true;
 }
 
 // ============================================================
@@ -404,19 +440,22 @@ void TaskScheduler::sendGoalToAGV(const std::string & agv_id, const Task & task)
 // ============================================================
 void TaskScheduler::cancelAGVTask(const std::string & agv_id)
 {
-  auto client_it = action_clients_.find(agv_id);
-  if (client_it == action_clients_.end()) {
+  std::lock_guard<std::mutex> lock(goal_handles_mutex_);
+
+  auto it = goal_handles_.find(agv_id);
+  if (it == goal_handles_.end() || !it->second) {
+    RCLCPP_WARN(this->get_logger(), "AGV %s 没有可取消的目标", agv_id.c_str());
     return;
   }
 
-  auto client = client_it->second;
-  if (!client->action_server_is_ready()) {
-    return;
-  }
-
-  // 异步取消当前目标
-  // 注意：这里简化处理，实际应该保存goal_handle来精确取消
+  auto goal_handle = it->second;
   RCLCPP_INFO(this->get_logger(), "取消 AGV %s 的当前任务", agv_id.c_str());
+
+  // 通过Action客户端异步取消目标
+  auto client_it = action_clients_.find(agv_id);
+  if (client_it != action_clients_.end()) {
+    client_it->second->async_cancel_goal(goal_handle);
+  }
 }
 
 // ============================================================

@@ -55,10 +55,10 @@ bool AstarSearch::search(
   }
 
   // 检查起终点是否可通行
-  if (!isTraversable(start, costmap, width)) {
+  if (!isTraversable(start, costmap, width, height)) {
     return false;  // 起点在障碍物上
   }
-  if (!isTraversable(goal, costmap, width)) {
+  if (!isTraversable(goal, costmap, width, height)) {
     return false;  // 终点在障碍物上
   }
 
@@ -170,8 +170,21 @@ bool AstarSearch::search(
       }
 
       // 跳过不可通行的格子（障碍物）
-      if (!isTraversable(neighbor, costmap, width)) {
+      if (!isTraversable(neighbor, costmap, width, height)) {
         continue;
+      }
+
+      // 对角移动检查：必须确保两个相邻正交格都可通行，防止"穿墙角"
+      // 从current到neighbor对角移动时，经过(current.x,neighbor.y)和(neighbor.x,current.y)
+      int dx = neighbor.x - current.x;
+      int dy = neighbor.y - current.y;
+      if (dx != 0 && dy != 0) {
+        GridCell orth1 = {neighbor.x, current.y};
+        GridCell orth2 = {current.x, neighbor.y};
+        if (!isTraversable(orth1, costmap, width, height) ||
+            !isTraversable(orth2, costmap, width, height)) {
+          continue;  // 正交格有障碍物，跳过此对角移动
+        }
       }
 
       // 计算从起点经过current到neighbor的新g值
@@ -345,10 +358,11 @@ bool AstarSearch::isValid(int x, int y, unsigned int width, unsigned int height)
 bool AstarSearch::isTraversable(
   const GridCell & cell,
   const std::vector<uint8_t> & costmap,
-  unsigned int width) const
+  unsigned int width,
+  unsigned int height) const
 {
   // 格子必须在地图范围内
-  if (!isValid(cell.x, cell.y, width, static_cast<unsigned int>(-1))) {
+  if (!isValid(cell.x, cell.y, width, height)) {
     return false;
   }
 

@@ -70,7 +70,10 @@ void TrafficManager::handleReservePath(
   std::string conflict_agv_id;
   double wait_time = 0.0;
 
-  bool has_conflict = checkConflict(
+  // 持有锁完成整个检查+插入操作，消除 TOCTOU 竞态
+  std::lock_guard<std::mutex> lock(table_mutex_);
+
+  bool has_conflict = checkConflictLocked(
     request->agv_id, request->path,
     request->start_time, request->speed,
     conflict_agv_id, wait_time);
@@ -96,8 +99,7 @@ void TrafficManager::handleReservePath(
     return;
   }
 
-  // 无冲突，记录预约
-  std::lock_guard<std::mutex> lock(table_mutex_);
+  // 无冲突，直接插入预约（锁已持有）
   double current_time = request->start_time;
   double speed = request->speed;
 
@@ -106,7 +108,6 @@ void TrafficManager::handleReservePath(
     double py = request->path.poses[i].pose.position.y;
     CellKey cell = worldToGrid(px, py);
 
-    // 计算到达下一个格子的时间
     double next_time = current_time;
     if (i < request->path.poses.size() - 1) {
       double nx = request->path.poses[i + 1].pose.position.x;
@@ -114,10 +115,9 @@ void TrafficManager::handleReservePath(
       double dist = std::sqrt((nx - px) * (nx - px) + (ny - py) * (ny - py));
       next_time = current_time + dist / speed;
     } else {
-      next_time = current_time + 1.0;  // 最后一个格子停留1秒
+      next_time = current_time + 1.0;
     }
 
-    // 对安全距离内的所有格子都预约
     for (int dx = -safety_distance_; dx <= safety_distance_; ++dx) {
       for (int dy = -safety_distance_; dy <= safety_distance_; ++dy) {
         CellKey neighbor = {cell.x + dx, cell.y + dy};
@@ -137,7 +137,7 @@ void TrafficManager::handleReservePath(
 
   // 清除等待依赖（预约成功）
   {
-    std::lock_guard<std::mutex> lock(wait_mutex_);
+    std::lock_guard<std::mutex> wlock(wait_mutex_);
     wait_graph_.erase(request->agv_id);
     wait_start_times_.erase(request->agv_id);
   }
@@ -203,9 +203,9 @@ void TrafficManager::cleanupExpired()
 }
 
 // ============================================================
-// checkConflict - 检查路径是否有冲突
+// checkConflictLocked - 检查路径是否有冲突（调用前必须已持有 table_mutex_）
 // ============================================================
-bool TrafficManager::checkConflict(
+bool TrafficManager::checkConflictLocked(
   const std::string & agv_id,
   const nav_msgs::msg::Path & path,
   double start_time,
@@ -213,7 +213,6 @@ bool TrafficManager::checkConflict(
   std::string & conflict_agv_id,
   double & wait_time)
 {
-  std::lock_guard<std::mutex> lock(table_mutex_);
   double current_time = start_time;
   double max_wait = 0.0;
 

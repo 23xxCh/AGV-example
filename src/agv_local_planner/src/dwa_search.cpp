@@ -136,9 +136,9 @@ DynamicWindow DWASearch::calculateDynamicWindow(const Velocity & current_vel) co
   dw.omega_max = params_.max_vel_theta;
 
   // 第二层限制：当前速度可达范围（Vd）
-  // 考虑加速度限制，在模拟时间内能达到的速度范围
-  // 使用sim_time作为时间窗口，这样机器人可以在整个模拟周期内加速
-  double dt = params_.sim_time;  // 使用模拟时间（如2秒）
+  // 考虑加速度限制，在一个控制周期内能达到的速度范围
+  // 使用控制周期（1/control_frequency）而非模拟时间，确保选出的速度在单个周期内物理可达
+  double dt = 1.0 / params_.control_frequency;  // 控制周期（如10Hz=0.1s）
   double v_min_reachable = current_vel.v - params_.acc_lim_x * dt;
   double v_max_reachable = current_vel.v + params_.acc_lim_x * dt;
   double omega_min_reachable = current_vel.omega - params_.acc_lim_theta * dt;
@@ -253,17 +253,17 @@ double DWASearch::scoreTrajectory(
   double velocity = computeVelocityScore(trajectory.v);
 
   // ---- 加权求和 ----
-  // G = α * heading + β * clearance + γ * velocity
+  // G = goal_distance_bias * heading + occdist_scale * clearance + path_distance_bias * velocity
   //
   // 权重调参指南：
-  // - α 大：路径跟踪紧，但可能忽略障碍物
-  // - β 大：朝向目标强，但可能偏离路径
-  // - γ 大：避障保守，但可能走得太慢
+  // - goal_distance_bias 大：朝向目标强，但可能偏离路径
+  // - occdist_scale 大：避障保守，但可能走得太慢
+  // - path_distance_bias 大：保持速度，但可能忽略障碍物
   //
-  // 仓储场景建议：α=0.6, β=0.8, γ=0.5
-  double score = params_.path_distance_bias * heading
-               + params_.goal_distance_bias * clearance
-               + params_.occdist_scale * velocity;
+  // 仓储场景建议：goal_distance_bias=0.8, occdist_scale=0.5, path_distance_bias=0.6
+  double score = params_.goal_distance_bias * heading
+               + params_.occdist_scale * clearance
+               + params_.path_distance_bias * velocity;
 
   // 额外惩罚后退运动（鼓励机器人朝前走）
   if (trajectory.v < 0.0) {

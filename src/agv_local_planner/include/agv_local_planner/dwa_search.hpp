@@ -160,6 +160,9 @@ struct DWAParams
   // ---- 停止条件 ----
   double stop_time_buffer;    // 停止前的缓冲时间（秒）
   double oscillation_dist;    // 振荡检测距离（米）
+
+  // ---- 控制频率 ----
+  double control_frequency;   // 控制频率（Hz），用于计算动态窗口的dt
 };
 
 // ============================================================

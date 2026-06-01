@@ -15,6 +15,7 @@
 #include <memory>
 #include <thread>
 #include <chrono>
+#include <algorithm>
 
 namespace agv_navigation
 {
@@ -27,7 +28,7 @@ NavigationCoordinator::NavigationCoordinator(const rclcpp::NodeOptions & options
   // ----------------------------------------------------------
   this->declare_parameter("planner_service", std::string("plan_path"));
   this->declare_parameter("feedback_rate", 5.0);
-  this->declare_parameter("goal_tolerance_xy", 0.3);
+  this->declare_parameter("goal_tolerance_xy", 0.4);
   this->declare_parameter("goal_tolerance_yaw", 0.2);
   this->declare_parameter("base_frame", std::string("base_link"));
   this->declare_parameter("map_frame", std::string("map"));
@@ -98,6 +99,22 @@ NavigationCoordinator::NavigationCoordinator(const rclcpp::NodeOptions & options
 }
 
 // ============================================================
+// ~NavigationCoordinator - 析构函数，安全关闭所有执行线程
+// ============================================================
+NavigationCoordinator::~NavigationCoordinator()
+{
+  // 设置关闭标志，通知所有执行线程退出
+  shutting_down_ = true;
+
+  // 等待所有活跃线程完成，避免use-after-free
+  for (auto & t : active_threads_) {
+    if (t.joinable()) {
+      t.join();
+    }
+  }
+}
+
+// ============================================================
 // handleGoal - 处理新的导航目标
 // ============================================================
 rclcpp_action::GoalResponse NavigationCoordinator::handleGoal(
@@ -131,7 +148,15 @@ rclcpp_action::CancelResponse NavigationCoordinator::handleCancel(
 void NavigationCoordinator::handleAccepted(
   const std::shared_ptr<GoalHandleNavigate> goal_handle)
 {
-  std::thread{std::bind(&NavigationCoordinator::execute, this, std::placeholders::_1), goal_handle}.detach();
+  // 清理已完成的线程，防止vector无限增长
+  active_threads_.erase(
+    std::remove_if(active_threads_.begin(), active_threads_.end(),
+      [](const std::thread & t) { return !t.joinable(); }),
+    active_threads_.end());
+
+  // 将线程存储到成员变量中，确保节点析构时能安全join
+  active_threads_.emplace_back(
+    std::bind(&NavigationCoordinator::execute, this, std::placeholders::_1), goal_handle);
 }
 
 // ============================================================
@@ -203,6 +228,14 @@ void NavigationCoordinator::execute(
   auto feedback = std::make_shared<NavigateAction::Feedback>();
 
   RCLCPP_INFO(this->get_logger(), "开始执行导航任务...");
+
+  // 检查节点是否正在关闭
+  if (shutting_down_) {
+    result->success = false;
+    result->error_msg = "节点正在关闭，取消导航";
+    goal_handle->abort(result);
+    return;
+  }
 
   // ----------------------------------------------------------
   // 步骤1：调用全局规划器获取路径
@@ -291,6 +324,17 @@ void NavigationCoordinator::execute(
   int replan_count = 0;
 
   while (rclcpp::ok()) {
+    // 检查节点是否正在关闭（避免析构后访问已销毁的成员）
+    if (shutting_down_) {
+      releasePath();
+      result->success = false;
+      result->error_msg = "节点关闭，中断导航";
+      result->total_time = (this->now() - start_time).seconds();
+      goal_handle->abort(result);
+      RCLCPP_WARN(this->get_logger(), "节点关闭，导航中断");
+      return;
+    }
+
     // 检查是否被取消
     if (goal_handle->is_canceling()) {
       releasePath();

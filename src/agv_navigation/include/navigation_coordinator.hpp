@@ -38,6 +38,8 @@
 #include <string>
 #include <memory>
 #include <atomic>
+#include <vector>
+#include <thread>
 
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_action/rclcpp_action.hpp"
@@ -60,6 +62,7 @@ public:
   using GoalHandleNavigate = rclcpp_action::ServerGoalHandle<NavigateAction>;
 
   explicit NavigationCoordinator(const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
+  ~NavigationCoordinator();
 
 private:
   // Action服务器回调
@@ -111,6 +114,10 @@ private:
   // 路径预约/释放辅助函数
   bool reservePath(const nav_msgs::msg::Path & path);
   void releasePath();
+
+  // 线程安全：管理活跃线程，避免分离线程的use-after-free问题
+  std::vector<std::thread> active_threads_;
+  std::atomic<bool> shutting_down_{false};
 };
 
 }  // namespace agv_navigation

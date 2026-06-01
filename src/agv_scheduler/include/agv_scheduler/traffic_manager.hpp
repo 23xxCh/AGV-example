@@ -78,8 +78,8 @@ private:
   // 清理过期预约
   void cleanupExpired();
 
-  // 检查路径是否有冲突
-  bool checkConflict(
+  // 检查路径是否有冲突（调用前必须已持有 table_mutex_）
+  bool checkConflictLocked(
     const std::string & agv_id,
     const nav_msgs::msg::Path & path,
     double start_time,

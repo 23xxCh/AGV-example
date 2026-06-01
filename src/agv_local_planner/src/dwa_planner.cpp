@@ -119,7 +119,7 @@ DWAParams DWAPlanner::loadParams()
   this->declare_parameter("path_distance_bias", 0.6);
   this->declare_parameter("goal_distance_bias", 0.8);
   this->declare_parameter("occdist_scale", 0.5);
-  this->declare_parameter("goal_tolerance_xy", 0.3);
+  this->declare_parameter("goal_tolerance_xy", 0.10);
   this->declare_parameter("goal_tolerance_yaw", 0.2);
   this->declare_parameter("stop_time_buffer", 0.5);
   this->declare_parameter("oscillation_dist", 0.3);
@@ -142,6 +142,7 @@ DWAParams DWAPlanner::loadParams()
   p.goal_tolerance_yaw = this->get_parameter("goal_tolerance_yaw").as_double();
   p.stop_time_buffer = this->get_parameter("stop_time_buffer").as_double();
   p.oscillation_dist = this->get_parameter("oscillation_dist").as_double();
+  p.control_frequency = control_frequency_;
 
   return p;
 }
@@ -170,7 +171,7 @@ void DWAPlanner::pathCallback(const nav_msgs::msg::Path::SharedPtr msg)
   path_received_ = true;
   local_goal_index_ = 0;  // 重置局部目标索引
 
-  RCLCPP_INFO_ONCE(this->get_logger(),
+  RCLCPP_INFO(this->get_logger(),
     "DWA收到全局路径: %zu个路径点", msg->poses.size());
 }
 
@@ -260,7 +261,8 @@ void DWAPlanner::controlTimerCallback()
     // 到达最终目标，停止
     geometry_msgs::msg::Twist stop_cmd;
     cmd_vel_pub_->publish(stop_cmd);
-    RCLCPP_INFO(this->get_logger(), "DWA: 已到达目标！停止。");
+    RCLCPP_INFO(this->get_logger(), "DWA: 已到达目标！停止。 goal=(%.2f,%.2f) robot=(%.2f,%.2f) dist=%.3f tol=%.3f",
+      final_goal.x, final_goal.y, robot_pose.x, robot_pose.y, dist_to_final, goal_tolerance_xy_);
     return;
   }
 
@@ -268,7 +270,7 @@ void DWAPlanner::controlTimerCallback()
   double speed_scale = 1.0;
   if (dist_to_final < goal_tolerance_xy_ * 3.0) {
     speed_scale = dist_to_final / (goal_tolerance_xy_ * 3.0);
-    speed_scale = std::max(0.3, speed_scale);  // 最低保持30%速度
+    speed_scale = std::max(0.05, speed_scale);  // 最低保持5%速度，允许缓慢接近目标
   }
 
   // ----------------------------------------------------------
@@ -410,12 +412,20 @@ Pose2D DWAPlanner::findLocalGoal(const Pose2D & robot_pose) const
   // ----------------------------------------------------------
   // 局部目标 = 最近点前方一定距离的点
   // ----------------------------------------------------------
-  // 为什么不在最近点？
-  // 因为如果目标就在机器人脚下，DWA会原地打转
-  // 给一个前方的目标，DWA会朝着它前进
-  int lookahead = 10;  // 向前看10个路径点
-  int goal_idx = std::min(nearest_idx + lookahead,
-                          static_cast<int>(global_path_.poses.size()) - 1);
+  // 使用距离而非点数作为lookahead，避免Chaikin平滑后路径点过密导致目标太近
+  double lookahead_dist = 0.5;  // 向前看0.5米
+  double accum_dist = 0.0;
+  int goal_idx = nearest_idx;
+  for (size_t i = nearest_idx + 1; i < global_path_.poses.size(); ++i) {
+    double dx = global_path_.poses[i].pose.position.x - global_path_.poses[i-1].pose.position.x;
+    double dy = global_path_.poses[i].pose.position.y - global_path_.poses[i-1].pose.position.y;
+    accum_dist += std::sqrt(dx * dx + dy * dy);
+    if (accum_dist >= lookahead_dist) {
+      goal_idx = static_cast<int>(i);
+      break;
+    }
+    goal_idx = static_cast<int>(i);
+  }
 
   // 更新local_goal_index_，避免下次回头找
   local_goal_index_ = nearest_idx;
